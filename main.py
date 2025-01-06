@@ -15,16 +15,17 @@ class WaterFlask(VGroup):
 
         circle.move_to(DOWN * (whole_height / 2 - 0.25))
 
-        bottle = Union(circle, rectangle)
-        bottle.set_points(bottle.points[4:])  # Remove the top line from the bottle (open from top)
+        self.bottle = Union(circle, rectangle)
+        self.bottle.set_z_index(10)
+        self.bottle.set_points(self.bottle.points[4:])  # Remove the top line from the bottle (open from top)
 
-        self.add(bottle)
+        self.add(self.bottle)
 
         bottom_rectangle_pos = DOWN * (whole_height / 2 - 0.25)
 
         self.rectangles = [
-            Square(side_length=1).set_fill(color, 0.8)
-            for color in colors
+            Square(side_length=1).set_fill(color, 1.0).set_stroke(color).set_z_index(5-i)
+            for i, color in enumerate(colors)
         ]
         self.invisble_shadow_rectangles = [
             Square(side_length=1)
@@ -39,21 +40,24 @@ class WaterFlask(VGroup):
 
         def get_clipping_mask_updater(invisible_rectangle):
             def update_clipping_mask(x):
-                intersection = Intersection(Difference(invisible_rectangle, self.big_clipping_mask), bottle)
-                x.set_points(intersection.get_points())
+                breakpoint()
+                intersection = Intersection(
+                    Difference(invisible_rectangle, self.big_clipping_mask), self.bottle
+                )
+                x.set_points(intersection.get_all_points())
             return update_clipping_mask
 
         for i, (rectangle, invisible_rectangle) in enumerate(zip(self.rectangles, self.invisble_shadow_rectangles)):
             rectangle.move_to(bottom_rectangle_pos + UP * i)
             invisible_rectangle.move_to(bottom_rectangle_pos + UP * i)
             updater_func = get_clipping_mask_updater(invisible_rectangle)
-            rectangle.add_updater(updater_func)
+            rectangle.add_updater(updater_func, 0)
             updater_func(rectangle)  # To have it right on the very first frame
-            rectangle.set_stroke(width=0)
+            # rectangle.set_stroke(width=1)
             invisible_rectangle.set_stroke(width=0)
-            invisible_rectangle.set_fill(WHITE, 0)
-            self.add(invisible_rectangle)
+            invisible_rectangle.set_fill(ORANGE, 0.0)
             self.add(rectangle)
+            self.add(invisible_rectangle)
 
     def animate_empty(self, n: int) -> AnimationGroup:
         local_down = rotate_vector(DOWN, BOTTLE_ROTATION)
@@ -87,15 +91,20 @@ class WaterFlask(VGroup):
                 .shift(shift_vector)
         )
 
+    def change_z_indexes(self, amount):
+        for rectangle in self.rectangles:
+            rectangle.set_z_index(rectangle.get_z_index() + amount)
+        self.bottle.set_z_index(self.bottle.get_z_index() + amount)
+
 
 class WaterTests(Scene):
     def construct(self):
-        flask1 = WaterFlask([RED, YELLOW, YELLOW, BLUE], 1)
+        flask1 = WaterFlask([YELLOW, YELLOW, BLUE, RED], 0)
         flask1.shift_with_mask(RIGHT * 1)
         self.add(flask1.big_clipping_mask)
         self.add(flask1)
 
-        flask2 = WaterFlask([RED, BLUE, YELLOW, RED], 4)
+        flask2 = WaterFlask([BLUE, YELLOW, RED, RED], 3)
         flask2.shift_with_mask(LEFT * 1)
         self.add(flask2)
         self.add(flask2.big_clipping_mask)
@@ -116,16 +125,16 @@ class WaterTests(Scene):
         for i in range(3):
             move_dir = UP * 2.5 + LEFT * 0.5
 
+            flask2.change_z_indexes(20)
             self.play(
                 *flask2.move_and_rotate_animate_with_mask(move_dir, BOTTLE_ROTATION),
                 # rate_func=linear,
             )
-
             self.play(flask2.animate_empty(1), flask1.animate_fill(1))
-
             self.play(
                 *flask2.move_and_rotate_animate_with_mask(-move_dir, -BOTTLE_ROTATION),
                 # rate_func=linear,
             )
+            flask2.change_z_indexes(-20)
 
         self.wait()
