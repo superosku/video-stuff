@@ -46,7 +46,9 @@ class WaterFlask(VGroup):
         for i, (rectangle, invisible_rectangle) in enumerate(zip(self.rectangles, self.invisble_shadow_rectangles)):
             rectangle.move_to(bottom_rectangle_pos + UP * i)
             invisible_rectangle.move_to(bottom_rectangle_pos + UP * i)
-            rectangle.add_updater(get_clipping_mask_updater(invisible_rectangle))
+            updater_func = get_clipping_mask_updater(invisible_rectangle)
+            rectangle.add_updater(updater_func)
+            updater_func(rectangle)  # To have it right on the very first frame
             rectangle.set_stroke(width=0)
             invisible_rectangle.set_stroke(width=0)
             invisible_rectangle.set_fill(WHITE, 0)
