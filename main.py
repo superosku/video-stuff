@@ -21,36 +21,24 @@ class WaterTests(Scene):
             Square(side_length=1).set_fill(BLUE, 0.8),
             Square(side_length=1).set_fill(YELLOW, 0.8),
         ]
-        clipping_masks = [
-            Square(side_length=1),
-            Square(side_length=1),
-            Square(side_length=1),
-            Square(side_length=1),
-        ]
 
-        def get_clipping_mask_updater(rectangle_orig, clipping_mask):
+        big_clipping_mask = Rectangle(height=4, width=1.0)
+        big_clipping_mask.move_to(bottom_rectangle_pos + UP * 5.5)
+        big_clipping_mask.set_stroke(width=0)
+        self.add(big_clipping_mask)
+
+        def get_clipping_mask_updater(rectangle_orig):
             rectangle = rectangle_orig.copy()
             def update_clipping_mask(x):
-                intersection = Intersection(Difference(rectangle, clipping_mask), bottle)
+                intersection = Intersection(Difference(rectangle, big_clipping_mask), bottle)
                 x.set_points(intersection.get_points())
             return update_clipping_mask
 
-        for i, (base, clipping_mask) in enumerate(zip(bases, clipping_masks)):
+        for i, base in enumerate(bases):
             base.move_to(bottom_rectangle_pos + UP * i)
-            base.add_updater(get_clipping_mask_updater(base, clipping_mask))
+            base.add_updater(get_clipping_mask_updater(base))
             base.set_stroke(width=0)
-            clipping_mask.move_to(base, UP)
-            clipping_mask.shift(UP)
-            clipping_mask.set_stroke(opacity=0)
             self.add(base)
-            self.add(clipping_mask)
 
-        self.play(clipping_masks[3].animate.shift(DOWN), run_time=0.5, rate_func=linear)
-        self.play(clipping_masks[2].animate.shift(DOWN), run_time=0.5, rate_func=linear)
-        self.play(clipping_masks[1].animate.shift(DOWN), run_time=0.5, rate_func=linear)
-        self.play(clipping_masks[0].animate.shift(DOWN), run_time=0.5, rate_func=linear)
-
-        self.play(clipping_masks[0].animate.shift(UP), run_time=0.5, rate_func=linear)
-        self.play(clipping_masks[1].animate.shift(UP), run_time=0.5, rate_func=linear)
-        self.play(clipping_masks[2].animate.shift(UP), run_time=0.5, rate_func=linear)
-        self.play(clipping_masks[3].animate.shift(UP), run_time=0.5, rate_func=linear)
+        self.play(big_clipping_mask.animate.shift(DOWN * 4), run_time=2)
+        self.play(big_clipping_mask.animate.shift(UP* 4), run_time=2)
