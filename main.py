@@ -8,6 +8,10 @@ class WaterFlask(VGroup):
     def __init__(self, colors: List[ManimColor], fill_amount: int):
         super().__init__()
 
+        # This is stored so the intersection is not calculated while the bottle is rotating
+        # Doing this causes weird off by 1 frame issues with the animation
+        self.rotating = False
+
         whole_height = 4.2
 
         circle = Circle(radius=0.5, color=WHITE)
@@ -40,7 +44,8 @@ class WaterFlask(VGroup):
 
         def get_clipping_mask_updater(invisible_rectangle):
             def update_clipping_mask(x):
-                breakpoint()
+                if self.rotating:
+                    return
                 intersection = Intersection(
                     Difference(invisible_rectangle, self.big_clipping_mask), self.bottle
                 )
@@ -126,15 +131,23 @@ class WaterTests(Scene):
             move_dir = UP * 2.5 + LEFT * 0.5
 
             flask2.change_z_indexes(20)
+
+            flask2.rotating = True
             self.play(
                 *flask2.move_and_rotate_animate_with_mask(move_dir, BOTTLE_ROTATION),
                 # rate_func=linear,
             )
+            flask2.rotating = False
+
             self.play(flask2.animate_empty(1), flask1.animate_fill(1))
+
+            flask2.rotating = True
             self.play(
                 *flask2.move_and_rotate_animate_with_mask(-move_dir, -BOTTLE_ROTATION),
                 # rate_func=linear,
             )
+            flask2.rotating = False
+
             flask2.change_z_indexes(-20)
 
         self.wait()
