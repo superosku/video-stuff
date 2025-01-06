@@ -1,8 +1,13 @@
 from manim import *
 
 
-class WaterTests(Scene):
-    def construct(self):
+BOTTLE_ROTATION = -PI / 2 + PI / 16
+
+
+class WaterFlask(VGroup):
+    def __init__(self, colors: List[ManimColor], fill_amount: int):
+        super().__init__()
+
         whole_height = 4.2
 
         circle = Circle(radius=0.5, color=WHITE)
@@ -11,36 +16,81 @@ class WaterTests(Scene):
         circle.move_to(DOWN * (whole_height / 2 - 0.25))
 
         bottle = Union(circle, rectangle)
-        bottle.set_points(bottle.points[4:]) # Remove the top line from the bottle (open from top)
+        bottle.set_points(bottle.points[4:])  # Remove the top line from the bottle (open from top)
 
         self.add(bottle)
 
         bottom_rectangle_pos = DOWN * (whole_height / 2 - 0.25)
 
-        bases = [
-            Square(side_length=1).set_fill(RED, 0.8),
-            Square(side_length=1).set_fill(GREEN, 0.8),
-            Square(side_length=1).set_fill(BLUE, 0.8),
-            Square(side_length=1).set_fill(YELLOW, 0.8),
+        self.rectangles = [
+            Square(side_length=1).set_fill(color, 0.8)
+            for color in colors
+        ]
+        self.invisble_shadow_rectangles = [
+            Square(side_length=1)
+            for _ in range(4)
         ]
 
-        big_clipping_mask = Rectangle(height=4, width=1.0)
-        big_clipping_mask.move_to(bottom_rectangle_pos + UP * 5.5)
-        big_clipping_mask.set_stroke(width=0)
-        self.add(big_clipping_mask)
+        self.big_clipping_mask = Rectangle(height=4, width=1.0)
+        self.big_clipping_mask.move_to(bottom_rectangle_pos + UP * (1.5 + fill_amount))
+        self.big_clipping_mask.set_fill(PURPLE, 0.2)
+        self.big_clipping_mask.set_stroke(width=0)
+        self.add(self.big_clipping_mask)
 
-        def get_clipping_mask_updater(rectangle_orig):
-            rectangle = rectangle_orig.copy()
+        def get_clipping_mask_updater(invisible_rectangle):
             def update_clipping_mask(x):
-                intersection = Intersection(Difference(rectangle, big_clipping_mask), bottle)
+                intersection = Intersection(Difference(invisible_rectangle, self.big_clipping_mask), bottle)
                 x.set_points(intersection.get_points())
             return update_clipping_mask
 
-        for i, base in enumerate(bases):
-            base.move_to(bottom_rectangle_pos + UP * i)
-            base.add_updater(get_clipping_mask_updater(base))
-            base.set_stroke(width=0)
-            self.add(base)
+        for i, (rectangle, invisible_rectangle) in enumerate(zip(self.rectangles, self.invisble_shadow_rectangles)):
+            rectangle.move_to(bottom_rectangle_pos + UP * i)
+            invisible_rectangle.move_to(bottom_rectangle_pos + UP * i)
+            rectangle.add_updater(get_clipping_mask_updater(invisible_rectangle))
+            rectangle.set_stroke(width=0)
+            invisible_rectangle.set_stroke(width=0)
+            invisible_rectangle.set_fill(WHITE, 0)
+            self.add(invisible_rectangle)
+            self.add(rectangle)
 
-        self.play(big_clipping_mask.animate.shift(DOWN * 4), run_time=2)
-        self.play(big_clipping_mask.animate.shift(UP* 4), run_time=2)
+    def animate_empty(self, n: int) -> AnimationGroup:
+        local_down = rotate_vector(DOWN, BOTTLE_ROTATION)
+        return AnimationGroup(
+            self.big_clipping_mask.animate.shift(local_down * n),
+        )
+
+    def animate_fill(self, n: int) -> AnimationGroup:
+        return AnimationGroup(
+            self.big_clipping_mask.animate.shift(UP * n)
+        )
+
+    def set_colors(self, colors: List[ManimColor]):
+        for base, color in zip(self.rectangles, colors):
+            base.set_fill(color, 0.8)
+
+    def set_color(self, i: int, color: ManimColor):
+        self.rectangles[i].set_fill(color, 0.8)
+
+
+class WaterTests(Scene):
+    def construct(self):
+        flask1 = WaterFlask([RED, YELLOW, YELLOW, BLUE], 2)
+        flask1.shift(RIGHT * 1)
+        self.add(flask1)
+
+        flask2 = WaterFlask([RED, GREEN, BLUE, YELLOW], 4)
+        flask2.shift(LEFT * 1)
+        self.add(flask2)
+
+        self.wait()
+
+        for i in range(2):
+            self.play(
+                flask2.animate.shift(UP + RIGHT).rotate(BOTTLE_ROTATION)
+            )
+
+            self.play(flask2.animate_empty(1), flask1.animate_fill(1))
+
+            self.play(
+                flask2.animate.shift(DOWN + LEFT).rotate(-BOTTLE_ROTATION)
+            )
