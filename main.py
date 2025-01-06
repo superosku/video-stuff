@@ -73,29 +73,41 @@ class WaterFlask(VGroup):
     def set_color(self, i: int, color: ManimColor):
         self.rectangles[i].set_fill(color, 0.8)
 
+    def shift_with_mask(self, shift_vector: np.ndarray):
+        self.shift(shift_vector)
+        self.big_clipping_mask.shift(shift_vector)
+
+    def move_and_rotate_animate_with_mask(self, shift_vector: np.ndarray, rotation: float) -> tuple[Mobject, ...]:
+        return (
+            self.animate.shift(shift_vector).rotate(rotation),
+            self.big_clipping_mask.animate
+                .shift(-self.get_center())
+                .rotate_about_origin(rotation)
+                .shift(self.get_center())
+                .shift(shift_vector)
+        )
+
 
 class WaterTests(Scene):
     def construct(self):
         flask1 = WaterFlask([RED, YELLOW, YELLOW, BLUE], 1)
-        flask1.shift(RIGHT * 1)
-        flask1.big_clipping_mask.shift(RIGHT * 1)
+        flask1.shift_with_mask(RIGHT * 1)
         self.add(flask1.big_clipping_mask)
         self.add(flask1)
 
         flask2 = WaterFlask([RED, BLUE, YELLOW, RED], 4)
-        flask2.shift(LEFT * 1)
-        flask2.big_clipping_mask.shift(LEFT * 1)
+        flask2.shift_with_mask(LEFT * 1)
         self.add(flask2)
         self.add(flask2.big_clipping_mask)
 
         for i in range(2):
             flask = WaterFlask([GREEN, BLUE, YELLOW, ORANGE], 4)
-            flask.shift(LEFT * (3 + i * 2))
+            flask.shift_with_mask(LEFT * (3 + i * 2))
             self.add(flask)
             self.add(flask.big_clipping_mask)
 
             flask = WaterFlask([RED, ORANGE, ORANGE, PURPLE], 4)
-            flask.shift(RIGHT* (3 + i * 2))
+            flask.shift_with_mask(RIGHT * (3 + i * 2))
             self.add(flask)
             self.add(flask.big_clipping_mask)
 
@@ -105,21 +117,15 @@ class WaterTests(Scene):
             move_dir = UP * 2.5 + LEFT * 0.5
 
             self.play(
-                flask2.animate.shift(move_dir).rotate(BOTTLE_ROTATION),
-                flask2.big_clipping_mask.animate
-                    .shift(-flask2.get_center())
-                    .rotate_about_origin(BOTTLE_ROTATION)
-                    .shift(flask2.get_center())
-                    .shift(move_dir)
+                *flask2.move_and_rotate_animate_with_mask(move_dir, BOTTLE_ROTATION),
+                # rate_func=linear,
             )
 
             self.play(flask2.animate_empty(1), flask1.animate_fill(1))
 
             self.play(
-                flask2.animate.shift(-move_dir).rotate(-BOTTLE_ROTATION),
-                flask2.big_clipping_mask.animate
-                    .shift(-flask2.get_center())
-                    .rotate_about_origin(-BOTTLE_ROTATION)
-                    .shift(flask2.get_center())
-                    .shift(-move_dir)
+                *flask2.move_and_rotate_animate_with_mask(-move_dir, -BOTTLE_ROTATION),
+                # rate_func=linear,
             )
+
+        self.wait()
