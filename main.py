@@ -7,9 +7,11 @@ class WaterTests(Scene):
 
         circle = Circle(radius=0.5, color=WHITE)
         rectangle = Rectangle(height=whole_height - 0.5, width=1.0, color=WHITE)
+
         circle.move_to(DOWN * (whole_height / 2 - 0.25))
 
         bottle = Union(circle, rectangle)
+        bottle.set_points(bottle.points[4:]) # Remove the top line from the bottle (open from top)
 
         self.add(bottle)
 
