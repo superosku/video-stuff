@@ -230,10 +230,10 @@ class WaterPuzzleSolver:
 
 class WaterPuzzleSolved(Scene):
     def construct(self):
-        color_options = [YELLOW, BLUE, RED, GREEN, ORANGE, PURPLE]
-        color_count = 6
-        scale_factor = 0.5
-        playback_speed = 0.5
+        color_options = [YELLOW, BLUE, RED, GREEN, ORANGE, PURPLE, WHITE, GREY, PINK]
+        color_count = 9
+        scale_factor = 0.75
+        playback_speed = 0.3
 
         puzzle = WaterPuzzleState.new_random(color_count)
         puzzle.print()
@@ -265,13 +265,15 @@ class WaterPuzzleSolved(Scene):
             run_time=playback_speed,
         )
 
-        for from_to in pour_instructions:
+        from_to = pour_instructions.pop(0)
+
+        while True:
             _from, _to, pour_amount, pour_color, destination_empty = from_to
 
             flask_from = flasks[_from]
             flask_to = flasks[_to]
 
-            move_dir = (UP * 2.5 + LEFT * 2.0 + LEFT * (_from - _to) * 1.5) * scale_factor
+            move_dir = (UP * 2.5 + LEFT * 2.4 + LEFT * (_from - _to) * 1.5) * scale_factor
 
             flask_from.rotating = True
             self.play(
@@ -289,12 +291,40 @@ class WaterPuzzleSolved(Scene):
                 run_time=playback_speed,
             )
 
+            # Do not go back down while pouring from the same flask to different flasks
+            # if len(pour_instructions) > 0:
+            #     print("ASDF", _to, pour_instructions[0])
+            while len(pour_instructions) > 0 and pour_instructions[0][0] == _from:
+                _to_old = _to
+                from_to = pour_instructions.pop(0)
+                _from, _to, pour_amount, pour_color, destination_empty = from_to
+                flask_to = flasks[_to]
+                for i in range(pour_amount):
+                    flask_to.set_color(4 - destination_empty + i, color_options[pour_color - 1])
+                new_move = LEFT * (_to_old - _to) * 1.5 * scale_factor
+                move_dir += new_move
+                self.play(
+                    flask_from.animate.shift(new_move),
+                    flask_from.big_clipping_mask.animate.shift(new_move),
+                    run_time=playback_speed,
+                )
+                self.play(
+                    flask_from.animate_empty(pour_amount, scale_factor),
+                    flask_to.animate_fill(pour_amount, scale_factor),
+                    run_time=playback_speed,
+                )
+
             flask_from.rotating = True
             self.play(
                 *flask_from.move_and_rotate_animate_with_mask(-move_dir, -BOTTLE_ROTATION),
                 run_time=playback_speed,
             )
             flask_from.rotating = False
+
+            try:
+                from_to = pour_instructions.pop(0)
+            except IndexError:
+                break
 
         self.wait()
 
