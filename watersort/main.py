@@ -1,4 +1,5 @@
 from manim import *
+import networkx as nx
 
 from watersort.helpers import WaterPuzzleState, WaterPuzzleSolver
 
@@ -246,5 +247,160 @@ class WaterTests(Scene):
             flask2.rotating = False
 
             flask2.change_z_indexes(-20)
+
+        self.wait()
+
+
+class PahtFinding(Scene):
+    def construct(self):
+        width = 17
+        height = 10
+
+        rows = []
+        squares_by_coords = {}
+        for y in range(height):
+            squares = []
+            for x in range(width):
+                square = Square(side_length=1)
+
+                square.set_fill(RED, 1.0)
+                if y == 7 and 2 < x < 12:
+                    square.set_fill(WHITE, 1.0)
+
+                squares.append(square)
+                squares_by_coords[(x, y)] = square
+            row = VGroup(*squares)
+            row.arrange(RIGHT, buff=0)
+            rows.append(row)
+        grid = VGroup(*rows).arrange()
+        grid.arrange(DOWN, buff=0)
+
+        grid.move_to(ORIGIN)
+        grid.scale(0.5)
+
+        self.add(grid)
+
+        connecting_lines = []
+        edges = []
+        connecting_lines_by_edge = {}
+        for y in range(height):
+            for x in range(width):
+                if x + 1 < width:
+                    if rows[y][x].fill_color != WHITE and rows[y][x + 1].fill_color != WHITE:
+                        line = Line(
+                            rows[y][x].get_center(),
+                            rows[y][x + 1].get_center(),
+                        )
+                        line.set_z_index(5)
+                        connecting_lines.append(line)
+                        edges.append(((x, y), (x + 1, y)))
+                        connecting_lines_by_edge[((x, y), (x + 1, y))] = line
+                if y + 1 < height:
+                    if rows[y][x].fill_color != WHITE and rows[y + 1][x].fill_color != WHITE:
+                        line = Line(
+                            rows[y][x].get_center(),
+                            rows[y + 1][x].get_center(),
+                        )
+                        line.set_z_index(5)
+                        connecting_lines.append(line)
+                        edges.append(((x, y), (x, y + 1)))
+                        connecting_lines_by_edge[((x, y), (x, y + 1))] = line
+
+        transform_to_circles_animations = sum([
+            [
+                Transform(
+                    square,
+                    Circle(radius=square.width / (2 + 1))
+                        .move_to(square.get_center())
+                        .set_stroke(WHITE)
+                        .set_fill(RED, 1)
+                        .set_z_index(10)
+                )
+                if square.fill_color != WHITE
+                else
+                Transform(
+                    square,
+                    Dot()
+                        .move_to(square.get_center())
+                        .set_stroke(WHITE, opacity=0)
+                        .set_fill(WHITE, opacity=0)
+                )
+                for square in row
+            ]
+            for row in rows
+        ], [])
+
+        self.play(
+            *transform_to_circles_animations,
+            *[FadeIn(l) for l in connecting_lines]
+        )
+
+        self.remove(*sum([
+            [
+                square
+                for square in row
+                if square.fill_color == WHITE
+            ]
+            for row in rows
+        ], []))
+
+        graph = nx.Graph()
+        for edge in edges:
+            _from, _to = edge
+            graph.add_edge(_from, _to)
+        new_positions = nx.spring_layout(
+            graph,
+            pos={
+                node: (node[0], -node[1])
+                for node in graph.nodes
+            },
+            iterations=50
+        )
+        all_new_positions = np.array(list(new_positions.values()))
+        pos_x_min, pos_y_min = all_new_positions.min(axis=0)
+        pos_x_max, pos_y_max = all_new_positions.max(axis=0)
+
+        all_old_positions = np.array([
+            [square.get_center()[0], square.get_center()[1]]
+            for square in squares_by_coords.values()]
+        )
+        old_x_min, old_y_min = all_old_positions.min(axis=0)
+        old_x_max, old_y_max = all_old_positions.max(axis=0)
+
+        scale_factor_x = (pos_x_max - pos_x_min) / (old_x_max - old_x_min)
+        scale_factor_y = (pos_y_max - pos_y_min) / (old_y_max - old_y_min)
+
+        scale_extra_large_factor = 1.2
+
+        for key, new_pos in new_positions.items():
+            # Scale the new pos
+            new_pos[0] /= scale_factor_x / scale_extra_large_factor
+            new_pos[1] /= scale_factor_y / scale_extra_large_factor
+            # Pad the new pos with one 0
+            new_positions[key] = np.array([*new_pos, 0])
+
+        animations = []
+        for node, new_position in new_positions.items():
+            square = squares_by_coords[node]
+            animations.append(square.animate.move_to(new_position))
+
+        for y in range(height):
+            for x in range(width):
+                if x + 1 < width:
+                    edge1 = connecting_lines_by_edge.get(((x, y), (x + 1, y)))
+                    if edge1:
+                        posa = new_positions[(x, y)]
+                        posb = new_positions[(x + 1, y)]
+                        anim = Transform(edge1, Line(posa, posb))
+                        animations.append(anim)
+                if y + 1 < height:
+                    edge2 = connecting_lines_by_edge.get(((x, y), (x, y + 1)))
+                    if edge2:
+                        posa = new_positions[(x, y)]
+                        posb = new_positions[(x, y + 1)]
+                        anim = Transform(edge2, Line(posa, posb))
+                        animations.append(anim)
+
+        self.play(*animations)
 
         self.wait()
