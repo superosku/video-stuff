@@ -66,15 +66,15 @@ class WaterFlask(VGroup):
             self.add(rectangle)
             self.add(invisible_rectangle)
 
-    def animate_empty(self, n: int) -> AnimationGroup:
+    def animate_empty(self, n: int, scale_factor: float) -> AnimationGroup:
         local_down = rotate_vector(DOWN, BOTTLE_ROTATION)
         return AnimationGroup(
-            self.big_clipping_mask.animate.shift(local_down * n),
+            self.big_clipping_mask.animate.shift(local_down * n * scale_factor),
         )
 
-    def animate_fill(self, n: int) -> AnimationGroup:
+    def animate_fill(self, n: int, scale_factor: float) -> AnimationGroup:
         return AnimationGroup(
-            self.big_clipping_mask.animate.shift(UP * n)
+            self.big_clipping_mask.animate.shift(UP * n * scale_factor)
         )
 
     def set_colors(self, colors: List[ManimColor]):
@@ -232,6 +232,8 @@ class WaterPuzzleSolved(Scene):
     def construct(self):
         color_options = [YELLOW, BLUE, RED, GREEN, ORANGE, PURPLE]
         color_count = 6
+        scale_factor = 0.5
+        playback_speed = 0.5
 
         puzzle = WaterPuzzleState.new_random(color_count)
         puzzle.print()
@@ -255,25 +257,43 @@ class WaterPuzzleSolved(Scene):
             self.add(flask)
             flasks.append(flask)
 
+        all_flasks = VGroup(*flasks)
+        all_flasks_and_masks = VGroup(*[f.big_clipping_mask for f in flasks], all_flasks)
+
+        self.play(
+            all_flasks_and_masks.animate.scale(scale_factor, about_point=ORIGIN),
+            run_time=playback_speed,
+        )
+
         for from_to in pour_instructions:
             _from, _to, pour_amount, pour_color, destination_empty = from_to
 
             flask_from = flasks[_from]
             flask_to = flasks[_to]
 
-            move_dir = UP * 2.5 + LEFT * 2.0 + LEFT * (_from - _to) * 1.5
+            move_dir = (UP * 2.5 + LEFT * 2.0 + LEFT * (_from - _to) * 1.5) * scale_factor
 
             flask_from.rotating = True
-            self.play(*flask_from.move_and_rotate_animate_with_mask(move_dir, BOTTLE_ROTATION))
+            self.play(
+                *flask_from.move_and_rotate_animate_with_mask(move_dir, BOTTLE_ROTATION),
+                run_time=playback_speed,
+            )
             flask_from.rotating = False
 
             for i in range(pour_amount):
                 flask_to.set_color(4 - destination_empty + i, color_options[pour_color - 1])
 
-            self.play(flask_from.animate_empty(pour_amount), flask_to.animate_fill(pour_amount))
+            self.play(
+                flask_from.animate_empty(pour_amount, scale_factor),
+                flask_to.animate_fill(pour_amount, scale_factor),
+                run_time=playback_speed,
+            )
 
             flask_from.rotating = True
-            self.play(*flask_from.move_and_rotate_animate_with_mask(-move_dir, -BOTTLE_ROTATION))
+            self.play(
+                *flask_from.move_and_rotate_animate_with_mask(-move_dir, -BOTTLE_ROTATION),
+                run_time=playback_speed,
+            )
             flask_from.rotating = False
 
         self.wait()
