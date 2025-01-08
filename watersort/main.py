@@ -81,7 +81,7 @@ class WaterFlask(VGroup):
         for base, color in zip(self.rectangles, colors):
             base.set_fill(color, 0.8)
 
-    def set_color(self, i: int, color: ManimColor):
+    def set_color_of_water(self, i: int, color: ManimColor):
         self.rectangles[i].set_fill(color, 1.0)
         self.rectangles[i].set_stroke(color)
 
@@ -159,12 +159,11 @@ class WaterPuzzle(VGroup):
     def animate_flask_to_pour_position(
         self,
         scene: Scene,
-        flask: WaterFlask,
         from_: int,
         to: int
     ):
         move_dir = self.get_pour_move_dir(from_, to)
-
+        flask = self.flasks[from_]
         flask.rotating = True
         scene.play(
             *flask.move_and_rotate_animate_with_mask(move_dir, BOTTLE_ROTATION),
@@ -176,7 +175,7 @@ class WaterPuzzle(VGroup):
         self, scene: Scene, inst: PourInstruction, flask_from: WaterFlask, flask_to: WaterFlask
     ):
         for i in range(inst.pour_amount):
-            flask_to.set_color(4 - inst.destination_empty + i, COLOR_OPTIONS[inst.pour_color - 1])
+            flask_to.set_color_of_water(4 - inst.destination_empty + i, COLOR_OPTIONS[inst.pour_color - 1])
 
         scene.play(
             flask_from.animate_empty(inst.pour_amount, self.scale_factor),
@@ -193,7 +192,8 @@ class WaterPuzzle(VGroup):
 
             move_dir = self.get_pour_move_dir(inst.from_, inst.to)
 
-            self.animate_flask_to_pour_position(scene, flask_from, inst.from_, inst.to)
+            flask_from.change_z_indexes(20)
+            self.animate_flask_to_pour_position(scene, inst.from_, inst.to)
             self.animate_pouring(scene, inst, flask_from, flask_to)
 
             # Do not go back down while pouring from the same flask to different flasks
@@ -219,6 +219,7 @@ class WaterPuzzle(VGroup):
                 run_time=self.playback_speed,
             )
             flask_from.rotating = False
+            flask_from.change_z_indexes(-20)
 
             try:
                 inst = pour_instructions.pop(0)
@@ -249,9 +250,24 @@ class WaterPuzzleExplained(Scene):
         puzzle.scale_properly(1.0)
         self.add(puzzle)
 
-        puzzle.animate_pours(self, [PourInstruction(3, 4, 1, 2, 4)])
-        self.wait(1)
-        puzzle.animate_pours(self, [PourInstruction(2, 3, 1, 1, 1)])
+        # Pour to empty spot
+        puzzle.animate_pours(self, [PourInstruction(3, 4, 1, 1, 4)])
+        # Pour over same color
+        puzzle.animate_pours(self, [PourInstruction(2, 3, 1, 2, 1)])
+        # Invalid pour over different color
+        moving_flask = puzzle.flasks[0]
+        moving_flask.change_z_indexes(20)
+        move_dir = puzzle.get_pour_move_dir(0, 4)
+        puzzle.animate_flask_to_pour_position(self, 0, 4)
+        self.play(Indicate(moving_flask, color=RED), run_time=0.5)
+        # Animate invalid pour bottle back to position
+        moving_flask.rotating = True
+        self.play(
+            *moving_flask.move_and_rotate_animate_with_mask(-move_dir, -BOTTLE_ROTATION),
+            run_time=1.0,
+        )
+        moving_flask.rotating = False
+        moving_flask.change_z_indexes(-20)
 
         self.wait()
 
