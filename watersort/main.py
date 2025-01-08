@@ -272,51 +272,6 @@ class WaterPuzzleExplained(Scene):
         self.wait()
 
 
-class WaterTests(Scene):
-    def construct(self):
-        flask1 = WaterFlask([YELLOW, YELLOW, BLUE, RED], 0)
-        flask1.shift_with_mask(RIGHT * 1)
-        self.add(flask1.big_clipping_mask)
-        self.add(flask1)
-
-        flask2 = WaterFlask([BLUE, YELLOW, RED, RED], 3)
-        flask2.shift_with_mask(LEFT * 1)
-        self.add(flask2)
-        self.add(flask2.big_clipping_mask)
-
-        for i in range(2):
-            flask = WaterFlask([GREEN, BLUE, YELLOW, ORANGE], 4)
-            flask.shift_with_mask(LEFT * (3 + i * 2))
-            self.add(flask)
-            self.add(flask.big_clipping_mask)
-
-            flask = WaterFlask([RED, ORANGE, ORANGE, PURPLE], 4)
-            flask.shift_with_mask(RIGHT * (3 + i * 2))
-            self.add(flask)
-            self.add(flask.big_clipping_mask)
-
-        self.wait()
-
-        for i in range(3):
-            move_dir = UP * 2.5 + LEFT * 0.5
-
-            flask2.change_z_indexes(20)
-
-            flask2.rotating = True
-            self.play(*flask2.move_and_rotate_animate_with_mask(move_dir, BOTTLE_ROTATION))
-            flask2.rotating = False
-
-            self.play(flask2.animate_empty(1), flask1.animate_fill(1))
-
-            flask2.rotating = True
-            self.play(*flask2.move_and_rotate_animate_with_mask(-move_dir, -BOTTLE_ROTATION))
-            flask2.rotating = False
-
-            flask2.change_z_indexes(-20)
-
-        self.wait()
-
-
 class PahtFinding(Scene):
     def construct(self):
         width = 17
