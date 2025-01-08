@@ -153,6 +153,37 @@ class WaterPuzzle(VGroup):
         self.all_flasks_and_masks = VGroup(*[f.big_clipping_mask for f in flasks], self.all_flasks)
         self.flasks = flasks
 
+    def get_pour_move_dir(self, from_: int, to: int) -> np.ndarray:
+        return (UP * 2.5 + LEFT * 2.4 + LEFT * (from_ - to) * 1.5) * self.scale_factor
+
+    def animate_flask_to_pour_position(
+        self,
+        scene: Scene,
+        flask: WaterFlask,
+        from_: int,
+        to: int
+    ):
+        move_dir = self.get_pour_move_dir(from_, to)
+
+        flask.rotating = True
+        scene.play(
+            *flask.move_and_rotate_animate_with_mask(move_dir, BOTTLE_ROTATION),
+            run_time=self.playback_speed,
+        )
+        flask.rotating = False
+
+    def animate_pouring(
+        self, scene: Scene, inst: PourInstruction, flask_from: WaterFlask, flask_to: WaterFlask
+    ):
+        for i in range(inst.pour_amount):
+            flask_to.set_color(4 - inst.destination_empty + i, COLOR_OPTIONS[inst.pour_color - 1])
+
+        scene.play(
+            flask_from.animate_empty(inst.pour_amount, self.scale_factor),
+            flask_to.animate_fill(inst.pour_amount, self.scale_factor),
+            run_time=self.playback_speed,
+        )
+
     def animate_pours(self, scene: Scene, pour_instructions: list[PourInstruction] = None):
         inst = pour_instructions.pop(0)
 
@@ -160,46 +191,27 @@ class WaterPuzzle(VGroup):
             flask_from = self.flasks[inst.from_]
             flask_to = self.flasks[inst.to]
 
-            move_dir = (UP * 2.5 + LEFT * 2.4 + LEFT * (inst.from_ - inst.to) * 1.5) * self.scale_factor
+            move_dir = self.get_pour_move_dir(inst.from_, inst.to)
 
-            flask_from.rotating = True
-            scene.play(
-                *flask_from.move_and_rotate_animate_with_mask(move_dir, BOTTLE_ROTATION),
-                run_time=self.playback_speed,
-            )
-            flask_from.rotating = False
-
-            for i in range(inst.pour_amount):
-                flask_to.set_color(4 - inst.destination_empty + i, COLOR_OPTIONS[inst.pour_color - 1])
-
-            scene.play(
-                flask_from.animate_empty(inst.pour_amount, self.scale_factor),
-                flask_to.animate_fill(inst.pour_amount, self.scale_factor),
-                run_time=self.playback_speed,
-            )
+            self.animate_flask_to_pour_position(scene, flask_from, inst.from_, inst.to)
+            self.animate_pouring(scene, inst, flask_from, flask_to)
 
             # Do not go back down while pouring from the same flask to different flasks
-            # if len(pour_instructions) > 0:
-            #     print("ASDF", _to, pour_instructions[0])
             while len(pour_instructions) > 0 and pour_instructions[0].from_ == inst.from_:
-                _to_old = inst.to
+                to_old_ = inst.to
                 inst = pour_instructions.pop(0)
-                # _from, _to, pour_amount, pour_color, destination_empty = from_to
                 flask_to = self.flasks[inst.to]
-                for i in range(inst.pour_amount):
-                    flask_to.set_color(4 - inst.destination_empty + i, COLOR_OPTIONS[inst.pour_color - 1])
-                new_move = LEFT * (_to_old - inst.to) * 1.5 * self.scale_factor
-                move_dir += new_move
+
+                sideways_move = LEFT * (to_old_ - inst.to) * 1.5 * self.scale_factor
+                move_dir += sideways_move
+
                 scene.play(
-                    flask_from.animate.shift(new_move),
-                    flask_from.big_clipping_mask.animate.shift(new_move),
+                    flask_from.animate.shift(sideways_move),
+                    flask_from.big_clipping_mask.animate.shift(sideways_move),
                     run_time=self.playback_speed,
                 )
-                scene.play(
-                    flask_from.animate_empty(inst.pour_amount, self.scale_factor),
-                    flask_to.animate_fill(inst.pour_amount, self.scale_factor),
-                    run_time=self.playback_speed,
-                )
+
+                self.animate_pouring(scene, inst, flask_from, flask_to)
 
             flask_from.rotating = True
             scene.play(
