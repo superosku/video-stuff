@@ -105,22 +105,32 @@ class WaterFlask(VGroup):
         self.bottle.set_z_index(self.bottle.get_z_index() + amount)
 
 
-class WaterPuzzleSolved(Scene):
-    def construct(self):
-        color_options = [YELLOW, BLUE, RED, GREEN, ORANGE, PURPLE, WHITE, GREY, PINK]
-        color_count = 9
-        scale_factor = 0.75
-        playback_speed = 0.3
+COLOR_OPTIONS = [YELLOW, BLUE, RED, GREEN, ORANGE, PURPLE, WHITE, GREY, PINK]
 
-        puzzle = WaterPuzzleState.new_random(color_count)
-        puzzle.print()
+
+class WaterPuzzle(VGroup):
+    scale_factor: float
+    playback_speed: float
+    color_count: int
+    pour_instructions: list[tuple[int, int, int, int, int]]
+    all_flasks: VGroup
+    flasks: list[WaterFlask]
+
+    def __init__(self, color_count: int = 9, playback_speed: float = 0.3):
+        super().__init__()
+
+        self.color_count = color_count
+        self.scale_factor = 1.0
+        self.playback_speed = playback_speed
+
+        puzzle = WaterPuzzleState.new_random(self.color_count)
 
         solver = WaterPuzzleSolver(puzzle)
-        pour_instructions = solver.solve()
+        self.pour_instructions = solver.solve()
 
         flasks = []
         for flask_n in range(color_count):
-            flask = WaterFlask([color_options[puzzle.pipes[flask_n][i] - 1] for i in range(4)], 4)
+            flask = WaterFlask([COLOR_OPTIONS[puzzle.pipes[flask_n][i] - 1] for i in range(4)], 4)
             flask.shift_with_mask(RIGHT * flask_n * 1.5 + LEFT * 1.5 * ((color_count + 1) / 2))
             self.add(flask.big_clipping_mask)
             self.add(flask)
@@ -134,38 +144,36 @@ class WaterPuzzleSolved(Scene):
             self.add(flask)
             flasks.append(flask)
 
-        all_flasks = VGroup(*flasks)
-        all_flasks_and_masks = VGroup(*[f.big_clipping_mask for f in flasks], all_flasks)
+        self.all_flasks = VGroup(*flasks)
+        self.all_flasks_and_masks = VGroup(*[f.big_clipping_mask for f in flasks], self.all_flasks)
+        self.flasks = flasks
 
-        self.play(
-            all_flasks_and_masks.animate.scale(scale_factor, about_point=ORIGIN),
-            run_time=playback_speed,
-        )
-
-        from_to = pour_instructions.pop(0)
+    def animate_full_solve(self, scene: Scene):
+        from_to = self.pour_instructions.pop(0)
+        pour_instructions = self.pour_instructions[:]  # Make a copy of the list
 
         while True:
             _from, _to, pour_amount, pour_color, destination_empty = from_to
 
-            flask_from = flasks[_from]
-            flask_to = flasks[_to]
+            flask_from = self.flasks[_from]
+            flask_to = self.flasks[_to]
 
-            move_dir = (UP * 2.5 + LEFT * 2.4 + LEFT * (_from - _to) * 1.5) * scale_factor
+            move_dir = (UP * 2.5 + LEFT * 2.4 + LEFT * (_from - _to) * 1.5) * self.scale_factor
 
             flask_from.rotating = True
-            self.play(
+            scene.play(
                 *flask_from.move_and_rotate_animate_with_mask(move_dir, BOTTLE_ROTATION),
-                run_time=playback_speed,
+                run_time=self.playback_speed,
             )
             flask_from.rotating = False
 
             for i in range(pour_amount):
-                flask_to.set_color(4 - destination_empty + i, color_options[pour_color - 1])
+                flask_to.set_color(4 - destination_empty + i, COLOR_OPTIONS[pour_color - 1])
 
-            self.play(
-                flask_from.animate_empty(pour_amount, scale_factor),
-                flask_to.animate_fill(pour_amount, scale_factor),
-                run_time=playback_speed,
+            scene.play(
+                flask_from.animate_empty(pour_amount, self.scale_factor),
+                flask_to.animate_fill(pour_amount, self.scale_factor),
+                run_time=self.playback_speed,
             )
 
             # Do not go back down while pouring from the same flask to different flasks
@@ -175,26 +183,26 @@ class WaterPuzzleSolved(Scene):
                 _to_old = _to
                 from_to = pour_instructions.pop(0)
                 _from, _to, pour_amount, pour_color, destination_empty = from_to
-                flask_to = flasks[_to]
+                flask_to = self.flasks[_to]
                 for i in range(pour_amount):
-                    flask_to.set_color(4 - destination_empty + i, color_options[pour_color - 1])
-                new_move = LEFT * (_to_old - _to) * 1.5 * scale_factor
+                    flask_to.set_color(4 - destination_empty + i, COLOR_OPTIONS[pour_color - 1])
+                new_move = LEFT * (_to_old - _to) * 1.5 * self.scale_factor
                 move_dir += new_move
-                self.play(
+                scene.play(
                     flask_from.animate.shift(new_move),
                     flask_from.big_clipping_mask.animate.shift(new_move),
-                    run_time=playback_speed,
+                    run_time=self.playback_speed,
                 )
-                self.play(
-                    flask_from.animate_empty(pour_amount, scale_factor),
-                    flask_to.animate_fill(pour_amount, scale_factor),
-                    run_time=playback_speed,
+                scene.play(
+                    flask_from.animate_empty(pour_amount, self.scale_factor),
+                    flask_to.animate_fill(pour_amount, self.scale_factor),
+                    run_time=self.playback_speed,
                 )
 
             flask_from.rotating = True
-            self.play(
+            scene.play(
                 *flask_from.move_and_rotate_animate_with_mask(-move_dir, -BOTTLE_ROTATION),
-                run_time=playback_speed,
+                run_time=self.playback_speed,
             )
             flask_from.rotating = False
 
@@ -202,6 +210,21 @@ class WaterPuzzleSolved(Scene):
                 from_to = pour_instructions.pop(0)
             except IndexError:
                 break
+
+    def scale_properly(self, scale_factor):
+        self.scale_factor *= scale_factor
+        self.all_flasks_and_masks.scale(
+            scale_factor, about_point=ORIGIN#, run_time=self.playback_speed
+        )
+
+
+class WaterPuzzleSolved(Scene):
+    def construct(self):
+        puzzle = WaterPuzzle()
+        puzzle.scale_properly(0.75)
+        self.add(puzzle)
+
+        puzzle.animate_full_solve(self)
 
         self.wait()
 
