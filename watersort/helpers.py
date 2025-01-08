@@ -1,4 +1,14 @@
+import dataclasses
 import random
+
+
+@dataclasses.dataclass
+class PourInstruction:
+    from_: int
+    to: int
+    pour_amount: int
+    pour_color: int
+    destination_empty: int
 
 
 class WaterPuzzleState:
@@ -8,11 +18,13 @@ class WaterPuzzleState:
         self.pipes = pipes
 
     @classmethod
-    def new_random(cls, num_colors=4):
+    def new_random(cls, num_colors=4, random_seed: int | None= None):
         all_colors = sum([
             [i + 1 for i in range(num_colors)]
             for _ in range(4)
         ], [])
+        if random_seed is not None:
+            random.seed(random_seed)
         random.shuffle(all_colors)
         pipes = [
             [all_colors[i], all_colors[i+1], all_colors[i+2], all_colors[i+3]]
@@ -25,8 +37,8 @@ class WaterPuzzleState:
         tuples = [tuple(p) for p in self.pipes]
         return tuple(sorted(tuples))  # Need to sort since the ordering does not really matter
 
-    def possible_options(self) -> list[tuple[tuple[int, int, int, int, int], "Self"]]:
-        possible_options: list[tuple[tuple[int, int, int, int, int], WaterPuzzleState]] = []
+    def possible_options(self) -> list[tuple[PourInstruction, "Self"]]:
+        possible_options: list[tuple[PourInstruction, WaterPuzzleState]] = []
         for i in range(len(self.pipes)):
             for j in range(len(self.pipes)):
                 if i == j:
@@ -68,12 +80,12 @@ class WaterPuzzleState:
                     new_pipes[j][4 - empty_spots_destination + pour_n] = pour_color
 
                 possible_options.append((
-                    (
-                        i,
-                        j,
-                        how_many_will_be_poured,
-                        pour_color,
-                        empty_spots_destination,
+                    PourInstruction(
+                        from_=i,
+                        to=j,
+                        pour_amount=how_many_will_be_poured,
+                        pour_color=pour_color,
+                        destination_empty=empty_spots_destination,
                     ),
                     WaterPuzzleState(new_pipes)
                 ))

@@ -1,7 +1,7 @@
 from manim import *
 import networkx as nx
 
-from watersort.helpers import WaterPuzzleState, WaterPuzzleSolver
+from watersort.helpers import WaterPuzzleState, WaterPuzzleSolver, PourInstruction
 
 BOTTLE_ROTATION = -PI / 2 + PI / 16
 
@@ -112,21 +112,26 @@ class WaterPuzzle(VGroup):
     scale_factor: float
     playback_speed: float
     color_count: int
-    pour_instructions: list[tuple[int, int, int, int, int]]
+    full_solve_instructions: list[PourInstruction]
     all_flasks: VGroup
     flasks: list[WaterFlask]
 
-    def __init__(self, color_count: int = 9, playback_speed: float = 0.3):
+    def __init__(
+        self,
+        color_count: int = 9,
+        playback_speed: float = 0.3,
+        random_seed: int = None
+    ):
         super().__init__()
 
         self.color_count = color_count
         self.scale_factor = 1.0
         self.playback_speed = playback_speed
 
-        puzzle = WaterPuzzleState.new_random(self.color_count)
+        puzzle = WaterPuzzleState.new_random(self.color_count, random_seed=random_seed)
 
         solver = WaterPuzzleSolver(puzzle)
-        self.pour_instructions = solver.solve()
+        self.full_solve_instructions = solver.solve()
 
         flasks = []
         for flask_n in range(color_count):
@@ -148,17 +153,14 @@ class WaterPuzzle(VGroup):
         self.all_flasks_and_masks = VGroup(*[f.big_clipping_mask for f in flasks], self.all_flasks)
         self.flasks = flasks
 
-    def animate_full_solve(self, scene: Scene):
-        from_to = self.pour_instructions.pop(0)
-        pour_instructions = self.pour_instructions[:]  # Make a copy of the list
+    def animate_pours(self, scene: Scene, pour_instructions: list[PourInstruction] = None):
+        inst = pour_instructions.pop(0)
 
         while True:
-            _from, _to, pour_amount, pour_color, destination_empty = from_to
+            flask_from = self.flasks[inst.from_]
+            flask_to = self.flasks[inst.to]
 
-            flask_from = self.flasks[_from]
-            flask_to = self.flasks[_to]
-
-            move_dir = (UP * 2.5 + LEFT * 2.4 + LEFT * (_from - _to) * 1.5) * self.scale_factor
+            move_dir = (UP * 2.5 + LEFT * 2.4 + LEFT * (inst.from_ - inst.to) * 1.5) * self.scale_factor
 
             flask_from.rotating = True
             scene.play(
@@ -167,26 +169,26 @@ class WaterPuzzle(VGroup):
             )
             flask_from.rotating = False
 
-            for i in range(pour_amount):
-                flask_to.set_color(4 - destination_empty + i, COLOR_OPTIONS[pour_color - 1])
+            for i in range(inst.pour_amount):
+                flask_to.set_color(4 - inst.destination_empty + i, COLOR_OPTIONS[inst.pour_color - 1])
 
             scene.play(
-                flask_from.animate_empty(pour_amount, self.scale_factor),
-                flask_to.animate_fill(pour_amount, self.scale_factor),
+                flask_from.animate_empty(inst.pour_amount, self.scale_factor),
+                flask_to.animate_fill(inst.pour_amount, self.scale_factor),
                 run_time=self.playback_speed,
             )
 
             # Do not go back down while pouring from the same flask to different flasks
             # if len(pour_instructions) > 0:
             #     print("ASDF", _to, pour_instructions[0])
-            while len(pour_instructions) > 0 and pour_instructions[0][0] == _from:
-                _to_old = _to
-                from_to = pour_instructions.pop(0)
-                _from, _to, pour_amount, pour_color, destination_empty = from_to
-                flask_to = self.flasks[_to]
-                for i in range(pour_amount):
-                    flask_to.set_color(4 - destination_empty + i, COLOR_OPTIONS[pour_color - 1])
-                new_move = LEFT * (_to_old - _to) * 1.5 * self.scale_factor
+            while len(pour_instructions) > 0 and pour_instructions[0].from_ == inst.from_:
+                _to_old = inst.to
+                inst = pour_instructions.pop(0)
+                # _from, _to, pour_amount, pour_color, destination_empty = from_to
+                flask_to = self.flasks[inst.to]
+                for i in range(inst.pour_amount):
+                    flask_to.set_color(4 - inst.destination_empty + i, COLOR_OPTIONS[inst.pour_color - 1])
+                new_move = LEFT * (_to_old - inst.to) * 1.5 * self.scale_factor
                 move_dir += new_move
                 scene.play(
                     flask_from.animate.shift(new_move),
@@ -194,8 +196,8 @@ class WaterPuzzle(VGroup):
                     run_time=self.playback_speed,
                 )
                 scene.play(
-                    flask_from.animate_empty(pour_amount, self.scale_factor),
-                    flask_to.animate_fill(pour_amount, self.scale_factor),
+                    flask_from.animate_empty(inst.pour_amount, self.scale_factor),
+                    flask_to.animate_fill(inst.pour_amount, self.scale_factor),
                     run_time=self.playback_speed,
                 )
 
@@ -207,7 +209,7 @@ class WaterPuzzle(VGroup):
             flask_from.rotating = False
 
             try:
-                from_to = pour_instructions.pop(0)
+                inst = pour_instructions.pop(0)
             except IndexError:
                 break
 
@@ -220,11 +222,24 @@ class WaterPuzzle(VGroup):
 
 class WaterPuzzleSolved(Scene):
     def construct(self):
-        puzzle = WaterPuzzle()
+        puzzle = WaterPuzzle(playback_speed=0.2)
         puzzle.scale_properly(0.75)
         self.add(puzzle)
 
-        puzzle.animate_full_solve(self)
+        puzzle.animate_pours(self, puzzle.full_solve_instructions)
+
+        self.wait()
+
+
+class WaterPuzzleExplained(Scene):
+    def construct(self):
+        puzzle = WaterPuzzle(color_count=4, playback_speed=1.0, random_seed=1)
+        puzzle.scale_properly(1.0)
+        self.add(puzzle)
+
+        puzzle.animate_pours(self, [PourInstruction(3, 4, 1, 2, 4)])
+        self.wait(1)
+        puzzle.animate_pours(self, [PourInstruction(2, 3, 1, 1, 1)])
 
         self.wait()
 
