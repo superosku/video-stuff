@@ -262,8 +262,9 @@ class PahtFinding(Scene):
             squares = []
             for x in range(width):
                 square = Square(side_length=1)
+                square.set_z_index(10)
+                square.set_fill(BLACK, 1.0)
 
-                square.set_fill(RED, 1.0)
                 if y == 7 and 2 < x < 12:
                     square.set_fill(WHITE, 1.0)
 
@@ -279,6 +280,62 @@ class PahtFinding(Scene):
         grid.scale(0.5)
 
         self.add(grid)
+
+        start_coords = (3, 3)
+        goal_coords = (15, 8)
+        person_square = squares_by_coords[start_coords]
+        person = Circle(radius=0.2).move_to(person_square.get_center()).set_z_index(20)
+        person.set_fill(RED, 1.0)
+
+        goal_square = squares_by_coords[goal_coords]
+        goal = Triangle().move_to(goal_square.get_center()).set_z_index(20).scale(0.2)
+        goal.set_fill(GREEN, 1.0)
+
+        self.add(person)
+        self.add(goal)
+
+        self.wait()
+
+        # Path finding
+
+        nodes = [(0, start_coords)]
+        node_i = 0
+        for i in range(1000):
+            distance, current_node = nodes[node_i]
+            node_i += 1
+            if current_node == goal_coords:
+                print("FOUND SOLUTION")
+                break
+            x, y = current_node
+
+            if x + 1 < width and rows[y][x + 1].fill_color != WHITE:
+                if not any([node[1] == (x + 1, y) for node in nodes]):
+                    self.play(FadeIn(
+                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y][x + 1].get_center())
+                    ), run_time=0.05)
+                    nodes.append((distance + 1, (x + 1, y)))
+            if y + 1 < height and rows[y + 1][x].fill_color != WHITE:
+                if not any([node[1] == (x, y + 1) for node in nodes]):
+                    self.play(FadeIn(
+                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y + 1][x].get_center())
+                    ), run_time=0.05)
+                    nodes.append((distance + 1, (x, y + 1)))
+            if x - 1 >= 0 and rows[y][x - 1].fill_color != WHITE:
+                if not any([node[1] == (x - 1, y) for node in nodes]):
+                    self.play(FadeIn(
+                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y][x - 1].get_center())
+                    ), run_time=0.05)
+                    nodes.append((distance + 1, (x - 1, y)))
+            if y - 1 >= 0 and rows[y - 1][x].fill_color != WHITE:
+                if not any([node[1] == (x, y - 1) for node in nodes]):
+                    self.play(FadeIn(
+                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y - 1][x].get_center())
+                    ), run_time=0.05)
+                    nodes.append((distance + 1, (x, y - 1)))
+
+        # Transformation from grid to graph
+
+        self.wait()
 
         connecting_lines = []
         edges = []
@@ -313,8 +370,7 @@ class PahtFinding(Scene):
                     Circle(radius=square.width / (2 + 1))
                         .move_to(square.get_center())
                         .set_stroke(WHITE)
-                        .set_fill(RED, 1)
-                        .set_z_index(10)
+                        .set_fill(BLACK, 1)
                 )
                 if square.fill_color != WHITE
                 else
@@ -335,14 +391,14 @@ class PahtFinding(Scene):
             *[FadeIn(l) for l in connecting_lines]
         )
 
-        self.remove(*sum([
-            [
-                square
-                for square in row
-                if square.fill_color == WHITE
-            ]
-            for row in rows
-        ], []))
+        # self.remove(*sum([
+        #     [
+        #         square
+        #         for square in row
+        #         if square.fill_color == WHITE
+        #     ]
+        #     for row in rows
+        # ], []))
 
         graph = nx.Graph()
         for edge in edges:
