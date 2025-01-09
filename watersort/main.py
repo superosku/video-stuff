@@ -272,7 +272,7 @@ class WaterPuzzleExplained(Scene):
         self.wait()
 
 
-class PahtFinding(Scene):
+class PathFinding(Scene):
     def construct(self):
         width = 17
         height = 10
@@ -288,6 +288,8 @@ class PahtFinding(Scene):
 
                 if y == 7 and 2 < x < 12:
                     square.set_fill(WHITE, 1.0)
+                if x == 11 and 1 < y < 7:
+                    square.set_fill(WHITE, 1.0)
 
                 squares.append(square)
                 squares_by_coords[(x, y)] = square
@@ -297,13 +299,13 @@ class PahtFinding(Scene):
         grid = VGroup(*rows).arrange()
         grid.arrange(DOWN, buff=0)
 
-        grid.move_to(ORIGIN)
+        grid.move_to(ORIGIN + LEFT * 1)
         grid.scale(0.5)
 
         self.add(grid)
 
-        start_coords = (3, 3)
-        goal_coords = (15, 8)
+        start_coords = (4, 4)
+        goal_coords = (13, 8)
         person_square = squares_by_coords[start_coords]
         person = Circle(radius=0.2).move_to(person_square.get_center()).set_z_index(20)
         person.set_fill(RED, 1.0)
@@ -315,44 +317,94 @@ class PahtFinding(Scene):
         self.add(person)
         self.add(goal)
 
-        self.wait()
-
         # Path finding
-
-        nodes = [(0, start_coords)]
+        node_mobjects = []
+        nodes = []
+        node_queue = VGroup()
+        self.add(node_queue)
         node_i = 0
-        for i in range(1000):
-            distance, current_node = nodes[node_i]
-            node_i += 1
+
+        move_queue_top = ORIGIN + RIGHT * 5 + UP * 2.5
+
+        def push_nodes_to_queue(node_distances: list[tuple[int, tuple[int, int]]]) -> list[Animation]:
+            new_texts = []
+            for distance, coords in node_distances:
+                nodes.append((distance, coords))
+                new_text = Text(f"{distance} ({coords[0], coords[1]})")
+                node_mobjects.append(new_text)
+                new_text.set_z_index(30).scale(0.5)
+                new_text.align_to(node_queue)
+                node_queue.add(new_text)
+                new_texts.append(new_text)
+            node_queue.arrange(DOWN, buff=0.1)
+            node_queue.move_to(move_queue_top, aligned_edge=UP)
+            return [
+                FadeIn(new_text)
+                for new_text in new_texts
+            ]
+
+        def pop_from_node_queue(node_i) -> tuple[int, int, tuple[int, int]]:
+            distance, coords = nodes[node_i]
+            node_to_be_removed = node_mobjects[node_i]
+
+            node_queue.remove(node_to_be_removed)
+            # node_queue.arrange(DOWN, buff=0.1)
+            # node_queue.move_to(move_queue_top, aligned_edge=UP)
+
+            self.play(
+                FadeOut(node_to_be_removed),
+                node_queue.animate
+                .arrange(DOWN, buff=0.1)
+                .move_to(move_queue_top, aligned_edge=UP),
+            )
+
+            return (
+                (node_i + 1, distance, coords)
+            )
+
+        push_nodes_to_queue([(0, start_coords)])
+
+        for i in range(10):
+            node_i, distance, current_node = pop_from_node_queue(node_i)
+
             if current_node == goal_coords:
                 print("FOUND SOLUTION")
                 break
             x, y = current_node
 
+            nodes_to_push = []
+            texts_to_push = []
+
             if x + 1 < width and rows[y][x + 1].fill_color != WHITE:
                 if not any([node[1] == (x + 1, y) for node in nodes]):
-                    self.play(FadeIn(
+                    nodes_to_push.append((x + 1, y))
+                    texts_to_push.append(
                         Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y][x + 1].get_center())
-                    ), run_time=0.05)
-                    nodes.append((distance + 1, (x + 1, y)))
+                    )
             if y + 1 < height and rows[y + 1][x].fill_color != WHITE:
                 if not any([node[1] == (x, y + 1) for node in nodes]):
-                    self.play(FadeIn(
+                    nodes_to_push.append((x, y + 1))
+                    texts_to_push.append(
                         Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y + 1][x].get_center())
-                    ), run_time=0.05)
-                    nodes.append((distance + 1, (x, y + 1)))
+                    )
             if x - 1 >= 0 and rows[y][x - 1].fill_color != WHITE:
                 if not any([node[1] == (x - 1, y) for node in nodes]):
-                    self.play(FadeIn(
+                    nodes_to_push.append((x - 1, y))
+                    texts_to_push.append(
                         Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y][x - 1].get_center())
-                    ), run_time=0.05)
-                    nodes.append((distance + 1, (x - 1, y)))
+                    )
             if y - 1 >= 0 and rows[y - 1][x].fill_color != WHITE:
                 if not any([node[1] == (x, y - 1) for node in nodes]):
-                    self.play(FadeIn(
+                    nodes_to_push.append((x, y - 1))
+                    texts_to_push.append(
                         Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y - 1][x].get_center())
-                    ), run_time=0.05)
-                    nodes.append((distance + 1, (x, y - 1)))
+                    )
+
+            animations = [
+                *push_nodes_to_queue([(distance + 1, node) for node in nodes_to_push]),
+                *[FadeIn(text) for text in texts_to_push]
+            ]
+            self.play(*animations)
 
         # Transformation from grid to graph
 
