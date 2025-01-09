@@ -273,15 +273,18 @@ class WaterPuzzleExplained(Scene):
 
 
 class PathFinding(Scene):
-    def construct(self):
-        width = 17
-        height = 10
 
-        rows = []
+    def construct(self):
+        self.width = 17
+        self.height = 10
+        self.rows = []
+        self.start_coords = (4, 4)
+        self.goal_coords = (13, 8)
+
         squares_by_coords = {}
-        for y in range(height):
+        for y in range(self.height):
             squares = []
-            for x in range(width):
+            for x in range(self.width):
                 square = Square(side_length=1)
                 square.set_z_index(10)
                 square.set_fill(BLACK, 1.0)
@@ -295,8 +298,8 @@ class PathFinding(Scene):
                 squares_by_coords[(x, y)] = square
             row = VGroup(*squares)
             row.arrange(RIGHT, buff=0)
-            rows.append(row)
-        grid = VGroup(*rows).arrange()
+            self.rows.append(row)
+        grid = VGroup(*self.rows).arrange()
         grid.arrange(DOWN, buff=0)
 
         grid.move_to(ORIGIN + LEFT * 1)
@@ -304,13 +307,11 @@ class PathFinding(Scene):
 
         self.add(grid)
 
-        start_coords = (4, 4)
-        goal_coords = (13, 8)
-        person_square = squares_by_coords[start_coords]
+        person_square = squares_by_coords[self.start_coords]
         person = Circle(radius=0.2).move_to(person_square.get_center()).set_z_index(20)
         person.set_fill(RED, 1.0)
 
-        goal_square = squares_by_coords[goal_coords]
+        goal_square = squares_by_coords[self.goal_coords]
         goal = Triangle().move_to(goal_square.get_center()).set_z_index(20).scale(0.2)
         goal.set_fill(GREEN, 1.0)
 
@@ -318,93 +319,9 @@ class PathFinding(Scene):
         self.add(goal)
 
         # Path finding
-        node_mobjects = []
-        nodes = []
-        node_queue = VGroup()
-        self.add(node_queue)
-        node_i = 0
-
-        move_queue_top = ORIGIN + RIGHT * 5 + UP * 2.5
-
-        def push_nodes_to_queue(node_distances: list[tuple[int, tuple[int, int]]]) -> list[Animation]:
-            new_texts = []
-            for distance, coords in node_distances:
-                nodes.append((distance, coords))
-                new_text = Text(f"{distance} ({coords[0], coords[1]})")
-                node_mobjects.append(new_text)
-                new_text.set_z_index(30).scale(0.5)
-                new_text.align_to(node_queue)
-                node_queue.add(new_text)
-                new_texts.append(new_text)
-            node_queue.arrange(DOWN, buff=0.1)
-            node_queue.move_to(move_queue_top, aligned_edge=UP)
-            return [
-                FadeIn(new_text)
-                for new_text in new_texts
-            ]
-
-        def pop_from_node_queue(node_i) -> tuple[int, int, tuple[int, int]]:
-            distance, coords = nodes[node_i]
-            node_to_be_removed = node_mobjects[node_i]
-
-            node_queue.remove(node_to_be_removed)
-            # node_queue.arrange(DOWN, buff=0.1)
-            # node_queue.move_to(move_queue_top, aligned_edge=UP)
-
-            self.play(
-                FadeOut(node_to_be_removed),
-                node_queue.animate
-                .arrange(DOWN, buff=0.1)
-                .move_to(move_queue_top, aligned_edge=UP),
-            )
-
-            return (
-                (node_i + 1, distance, coords)
-            )
-
-        push_nodes_to_queue([(0, start_coords)])
-
-        for i in range(10):
-            node_i, distance, current_node = pop_from_node_queue(node_i)
-
-            if current_node == goal_coords:
-                print("FOUND SOLUTION")
-                break
-            x, y = current_node
-
-            nodes_to_push = []
-            texts_to_push = []
-
-            if x + 1 < width and rows[y][x + 1].fill_color != WHITE:
-                if not any([node[1] == (x + 1, y) for node in nodes]):
-                    nodes_to_push.append((x + 1, y))
-                    texts_to_push.append(
-                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y][x + 1].get_center())
-                    )
-            if y + 1 < height and rows[y + 1][x].fill_color != WHITE:
-                if not any([node[1] == (x, y + 1) for node in nodes]):
-                    nodes_to_push.append((x, y + 1))
-                    texts_to_push.append(
-                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y + 1][x].get_center())
-                    )
-            if x - 1 >= 0 and rows[y][x - 1].fill_color != WHITE:
-                if not any([node[1] == (x - 1, y) for node in nodes]):
-                    nodes_to_push.append((x - 1, y))
-                    texts_to_push.append(
-                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y][x - 1].get_center())
-                    )
-            if y - 1 >= 0 and rows[y - 1][x].fill_color != WHITE:
-                if not any([node[1] == (x, y - 1) for node in nodes]):
-                    nodes_to_push.append((x, y - 1))
-                    texts_to_push.append(
-                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(rows[y - 1][x].get_center())
-                    )
-
-            animations = [
-                *push_nodes_to_queue([(distance + 1, node) for node in nodes_to_push]),
-                *[FadeIn(text) for text in texts_to_push]
-            ]
-            self.play(*animations)
+        self.wait()
+        self.animate_path_finding()
+        self.clear_path_finding_text()
 
         # Transformation from grid to graph
 
@@ -413,23 +330,23 @@ class PathFinding(Scene):
         connecting_lines = []
         edges = []
         connecting_lines_by_edge = {}
-        for y in range(height):
-            for x in range(width):
-                if x + 1 < width:
-                    if rows[y][x].fill_color != WHITE and rows[y][x + 1].fill_color != WHITE:
+        for y in range(self.height):
+            for x in range(self.width):
+                if x + 1 < self.width:
+                    if self.rows[y][x].fill_color != WHITE and self.rows[y][x + 1].fill_color != WHITE:
                         line = Line(
-                            rows[y][x].get_center(),
-                            rows[y][x + 1].get_center(),
+                            self.rows[y][x].get_center(),
+                            self.rows[y][x + 1].get_center(),
                         )
                         line.set_z_index(5)
                         connecting_lines.append(line)
                         edges.append(((x, y), (x + 1, y)))
                         connecting_lines_by_edge[((x, y), (x + 1, y))] = line
-                if y + 1 < height:
-                    if rows[y][x].fill_color != WHITE and rows[y + 1][x].fill_color != WHITE:
+                if y + 1 < self.height:
+                    if self.rows[y][x].fill_color != WHITE and self.rows[y + 1][x].fill_color != WHITE:
                         line = Line(
-                            rows[y][x].get_center(),
-                            rows[y + 1][x].get_center(),
+                            self.rows[y][x].get_center(),
+                            self.rows[y + 1][x].get_center(),
                         )
                         line.set_z_index(5)
                         connecting_lines.append(line)
@@ -456,7 +373,7 @@ class PathFinding(Scene):
                 )
                 for square in row
             ]
-            for row in rows
+            for row in self.rows
         ], [])
 
         self.play(
@@ -504,6 +421,7 @@ class PathFinding(Scene):
         for key, new_pos in new_positions.items():
             # Scale the new pos
             new_pos[0] /= scale_factor_x / scale_extra_large_factor
+            new_pos[0] -= 2  # Move slightly to the left
             new_pos[1] /= scale_factor_y / scale_extra_large_factor
             # Pad the new pos with one 0
             new_positions[key] = np.array([*new_pos, 0])
@@ -513,16 +431,19 @@ class PathFinding(Scene):
             square = squares_by_coords[node]
             animations.append(square.animate.move_to(new_position))
 
-        for y in range(height):
-            for x in range(width):
-                if x + 1 < width:
+        animations.append(goal.animate.move_to(new_positions[self.goal_coords]))
+        animations.append(person.animate.move_to(new_positions[self.start_coords]))
+
+        for y in range(self.height):
+            for x in range(self.width):
+                if x + 1 < self.width:
                     edge1 = connecting_lines_by_edge.get(((x, y), (x + 1, y)))
                     if edge1:
                         posa = new_positions[(x, y)]
                         posb = new_positions[(x + 1, y)]
                         anim = Transform(edge1, Line(posa, posb))
                         animations.append(anim)
-                if y + 1 < height:
+                if y + 1 < self.height:
                     edge2 = connecting_lines_by_edge.get(((x, y), (x, y + 1)))
                     if edge2:
                         posa = new_positions[(x, y)]
@@ -533,3 +454,110 @@ class PathFinding(Scene):
         self.play(*animations)
 
         self.wait()
+
+        self.animate_path_finding()
+        self.clear_path_finding_text()
+
+        self.wait()
+
+    def animate_path_finding(self):
+        node_mobjects = []
+        nodes = []
+        self.node_queue = VGroup()
+        self.add(self.node_queue)
+        node_i = 0
+
+        move_queue_top = ORIGIN + RIGHT * 5 + UP * 2.5
+
+        def push_nodes_to_queue(node_distances: list[tuple[int, tuple[int, int]]]) -> list[Animation]:
+            new_texts = []
+            for distance, coords in node_distances:
+                nodes.append((distance, coords))
+                new_text = Text(f"{distance} ({coords[0], coords[1]})")
+                node_mobjects.append(new_text)
+                new_text.set_z_index(30).scale(0.5)
+                new_text.align_to(self.node_queue)
+                self.node_queue.add(new_text)
+                new_texts.append(new_text)
+            self.node_queue.arrange(DOWN, buff=0.1)
+            self.node_queue.move_to(move_queue_top, aligned_edge=UP)
+            return [
+                FadeIn(new_text)
+                for new_text in new_texts
+            ]
+
+        def pop_from_node_queue(node_i) -> tuple[int, int, tuple[int, int]]:
+            distance, coords = nodes[node_i]
+            node_to_be_removed = node_mobjects[node_i]
+
+            self.node_queue.remove(node_to_be_removed)
+            # node_queue.arrange(DOWN, buff=0.1)
+            # node_queue.move_to(move_queue_top, aligned_edge=UP)
+
+            self.play(
+                FadeOut(node_to_be_removed),
+                self.node_queue.animate
+                .arrange(DOWN, buff=0.1)
+                .move_to(move_queue_top, aligned_edge=UP),
+                run_time=0.2
+            )
+
+            return (
+                (node_i + 1, distance, coords)
+            )
+
+        push_nodes_to_queue([(0, self.start_coords)])
+
+        self.all_texts = []
+
+        for i in range(2):
+            node_i, distance, current_node = pop_from_node_queue(node_i)
+
+            if current_node == self.goal_coords:
+                print("FOUND SOLUTION")
+                break
+            x, y = current_node
+
+            nodes_to_push = []
+            texts_to_push = []
+
+            if x + 1 < self.width and self.rows[y][x + 1].fill_color != WHITE:
+                if not any([node[1] == (x + 1, y) for node in nodes]):
+                    nodes_to_push.append((x + 1, y))
+                    texts_to_push.append(
+                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(self.rows[y][x + 1].get_center())
+                    )
+            if y + 1 < self.height and self.rows[y + 1][x].fill_color != WHITE:
+                if not any([node[1] == (x, y + 1) for node in nodes]):
+                    nodes_to_push.append((x, y + 1))
+                    texts_to_push.append(
+                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(self.rows[y + 1][x].get_center())
+                    )
+            if x - 1 >= 0 and self.rows[y][x - 1].fill_color != WHITE:
+                if not any([node[1] == (x - 1, y) for node in nodes]):
+                    nodes_to_push.append((x - 1, y))
+                    texts_to_push.append(
+                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(self.rows[y][x - 1].get_center())
+                    )
+            if y - 1 >= 0 and self.rows[y - 1][x].fill_color != WHITE:
+                if not any([node[1] == (x, y - 1) for node in nodes]):
+                    nodes_to_push.append((x, y - 1))
+                    texts_to_push.append(
+                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(self.rows[y - 1][x].get_center())
+                    )
+
+            animations = [
+                *push_nodes_to_queue([(distance + 1, node) for node in nodes_to_push]),
+                *[FadeIn(text) for text in texts_to_push]
+            ]
+            self.all_texts.extend(texts_to_push)
+            self.play(*animations, run_time=0.5)
+
+    def clear_path_finding_text(self):
+        self.play(
+            FadeOut(self.node_queue),
+            *[FadeOut(text) for text in self.all_texts]
+        )
+        self.remove(self.node_queue)
+        self.remove(*self.all_texts)
+        pass
