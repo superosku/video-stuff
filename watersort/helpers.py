@@ -16,9 +16,11 @@ HashablePuzzleState = tuple[tuple[int, int, int, int]]
 
 class WaterPuzzleState:
     pipes: list[list[int]]
+    distance: int
 
-    def __init__(self, pipes: list[list[int]]):
+    def __init__(self, pipes: list[list[int]], distance:int = 0):
         self.pipes = pipes
+        self.distance = distance
 
     @classmethod
     def from_hashable_state(cls, hashable_state: HashablePuzzleState) -> "WaterPuzzleState":
@@ -98,7 +100,7 @@ class WaterPuzzleState:
                         pour_color=pour_color,
                         destination_empty=empty_spots_destination,
                     ),
-                    WaterPuzzleState(new_pipes)
+                    WaterPuzzleState(new_pipes, distance=self.distance + 1)
                 ))
         return possible_options
 
@@ -132,6 +134,8 @@ class WaterPuzzleSolver:
         self.solve_instructions = []
         self.hashable_to_original_unsorted = {}
 
+        self.distance_to_hashables = {}
+
         if self.initial_state.is_solved():
             return
 
@@ -146,6 +150,9 @@ class WaterPuzzleSolver:
             if current_state.hashable() not in self.hashable_to_original_unsorted:
                 self.hashable_to_original_unsorted[current_state.hashable()] = current_state
             self.nodes.add(current_state.hashable())
+            if current_state.distance not in self.distance_to_hashables:
+                self.distance_to_hashables[current_state.distance] = set()
+            self.distance_to_hashables[current_state.distance].add(current_state.hashable())
             if current_state.is_solved():
                 solved_state = current_state
             for from_to, option in current_state.possible_options():

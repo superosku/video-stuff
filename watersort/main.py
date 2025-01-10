@@ -622,6 +622,8 @@ class WaterSortAsGraph(Scene):
         start_piece = None
         end_piece = None
 
+        things_by_distance = {}
+
         for hashed_flask, position in positions.items():
             original_flask = orig_puzzle.solver.hashable_to_original_unsorted[hashed_flask]
             puzzle = WaterPuzzle.new_from_hashable_state(original_flask.pipes, playback_speed=0.25)
@@ -633,20 +635,20 @@ class WaterSortAsGraph(Scene):
             is_end = False
             if hashed_flask == orig_puzzle.solver.initial_state.hashable():
                 is_start = True
-                color = WHITE
-                fill_color = GREEN
+                color = GREEN
+                # fill_color = GREEN
             elif puzzle.puzzle.is_solved():
                 is_end = True
-                color = WHITE
-                fill_color = RED
+                color = RED
+                # fill_color = RED
             else:
                 color = WHITE
 
             rect = SurroundingRectangle(puzzle_flasks, color=color, buff=1, corner_radius=1)
             rect.set_fill(color=fill_color, opacity=1.0)
             both = VGroup(puzzle_flasks, rect)
-            both.move_to(np.array([*position * 5, 0]))
-            both.scale(0.2)
+            both.move_to(np.array([*position * 3, 0]))
+            both.scale(0.1)
             if True: # Set z indexes properly
                 both.set_z_index(z_ind)
                 puzzle_flasks.set_z_index(z_ind + 1)
@@ -659,7 +661,12 @@ class WaterSortAsGraph(Scene):
             if is_end:
                 end_piece = both
             everything_vgroup.add(both)
-            # self.add(both)
+
+            # Distance stuff
+            distance = orig_puzzle.solver.hashable_to_original_unsorted[hashed_flask].distance
+            if distance not in things_by_distance:
+                things_by_distance[distance] = []
+            things_by_distance[distance].append(both)
 
         for edge in orig_puzzle.solver.edges:
             # continue
@@ -669,17 +676,17 @@ class WaterSortAsGraph(Scene):
                 # ORIGIN
             )
             everything_vgroup.add(line)
-            # self.add(line)
 
-        everything_vgroup.move_to(-start_piece.get_center())
-        self.add(everything_vgroup)
+            distance = orig_puzzle.solver.hashable_to_original_unsorted[edge[1]].distance
+            things_by_distance[distance].append(line)
 
-        self.wait(0.5)
+        # everything_vgroup.move_to(-start_piece.get_center())
+        # everything_vgroup.scale(0.2)
 
-        self.play(
-            everything_vgroup.animate.move_to(everything_vgroup.get_center() - end_piece.get_center()),
-            run_time=3,
-            rate_function=linear
-        )
-
-        self.wait(0.5)
+        all_things_added = []
+        for distance in sorted(things_by_distance.keys()):
+            things_to_add = things_by_distance[distance]
+            all_things_added.extend(things_to_add)
+            self.play(
+                *[FadeIn(thing) for thing in things_to_add],
+            )
