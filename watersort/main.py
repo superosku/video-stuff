@@ -420,10 +420,15 @@ class PathFinding(Scene):
 
         for key, new_pos in new_positions.items():
             # Scale the new pos
-            new_pos[0] /= scale_factor_x / scale_extra_large_factor
+            new_pos[0] /= 0.8 * scale_factor_x / scale_extra_large_factor
             new_pos[0] -= 2  # Move slightly to the left
-            new_pos[1] /= scale_factor_y / scale_extra_large_factor
+            new_pos[1] /= 0.8 * scale_factor_y / scale_extra_large_factor
             # Pad the new pos with one 0
+
+            # Make new pos be the average of new and old pos
+            new_pos[0] = (new_pos[0] + 2 * squares_by_coords[key].get_center()[0]) / 3
+            new_pos[1] = (new_pos[1] + 2 * squares_by_coords[key].get_center()[1]) / 3
+
             new_positions[key] = np.array([*new_pos, 0])
 
         animations = []
@@ -510,7 +515,7 @@ class PathFinding(Scene):
 
         self.all_texts = []
 
-        for i in range(2):
+        for i in range(10):
             node_i, distance, current_node = pop_from_node_queue(node_i)
 
             if current_node == self.goal_coords:
@@ -551,7 +556,8 @@ class PathFinding(Scene):
                 *[FadeIn(text) for text in texts_to_push]
             ]
             self.all_texts.extend(texts_to_push)
-            self.play(*animations, run_time=0.5)
+            if animations:
+                self.play(*animations, run_time=0.5)
 
     def clear_path_finding_text(self):
         self.play(
