@@ -11,6 +11,9 @@ class PourInstruction:
     destination_empty: int
 
 
+HashablePuzzleState = tuple[tuple[int, int, int, int]]
+
+
 class WaterPuzzleState:
     pipes: list[list[int]]
 
@@ -18,7 +21,15 @@ class WaterPuzzleState:
         self.pipes = pipes
 
     @classmethod
-    def new_random(cls, num_colors=4, random_seed: int | None= None):
+    def from_hashable_state(cls, hashable_state: HashablePuzzleState) -> "WaterPuzzleState":
+        pipes = [
+            list(p)
+            for p in hashable_state
+        ]
+        return cls(pipes)
+
+    @classmethod
+    def new_random(cls, num_colors=4, random_seed: int | None = None) -> "WaterPuzzleState":
         all_colors = sum([
             [i + 1 for i in range(num_colors)]
             for _ in range(4)
@@ -33,9 +44,9 @@ class WaterPuzzleState:
 
         return cls(pipes)
 
-    def hashable(self) -> tuple[tuple[int, int, int, int]]:
+    def hashable(self) -> HashablePuzzleState:
         tuples = [tuple(p) for p in self.pipes]
-        return tuple(sorted(tuples))  # Need to sort since the ordering does not really matter
+        return tuple(reversed(sorted(tuples)))  # Need to sort since the ordering does not really matter
 
     def possible_options(self) -> list[tuple[PourInstruction, "Self"]]:
         possible_options: list[tuple[PourInstruction, WaterPuzzleState]] = []
@@ -103,34 +114,60 @@ class WaterPuzzleState:
 
 
 class WaterPuzzleSolver:
+    solve_instructions: list[PourInstruction]
+    nodes: set[HashablePuzzleState]
+    edges: set[tuple[HashablePuzzleState, HashablePuzzleState]]
+
     def __init__(self, initial_state: WaterPuzzleState):
         self.initial_state = initial_state
 
-    def solve(self) -> list[tuple[int, int]]:
+    def solve(self) -> None:
         queue = [self.initial_state]
         visited = {self.initial_state.hashable()}
         prev_nexts = {}
+
+        solved_state = None
+        self.nodes: set[HashablePuzzleState] = set()
+        self.edges: set[tuple[HashablePuzzleState, HashablePuzzleState]] = set()
+        self.solve_instructions = []
+        self.hashable_to_original_unsorted = {}
+
+        if self.initial_state.is_solved():
+            return
+
         while True:
             if len(queue) == 0:
-                print("No solution found")
+                if solved_state is not None:
+                    print("Solved!")
+                else:
+                    print("No solution found")
                 break
             current_state = queue.pop(0)
+            if current_state.hashable() not in self.hashable_to_original_unsorted:
+                self.hashable_to_original_unsorted[current_state.hashable()] = current_state
+            self.nodes.add(current_state.hashable())
             if current_state.is_solved():
-                print("Solved!")
-                current_state.print()
-                break
+                solved_state = current_state
             for from_to, option in current_state.possible_options():
+                self.edges.add((current_state.hashable(), option.hashable()))
                 if option.hashable() not in visited:
                     visited.add(option.hashable())
                     queue.append(option)
                     prev_nexts[option.hashable()] = (current_state.hashable(), from_to)
 
-        backstep_state = current_state.hashable()
+        if solved_state is None:
+            return
+
+        backstep_state = solved_state.hashable()
         steps = []
         while True:
-            backstep_state, from_to = prev_nexts.get(backstep_state)
+            try:
+                backstep_state, from_to = prev_nexts[backstep_state]
+            except KeyError:
+                # Is not solvable (perhaps already solved?)
+                return
             steps.append(from_to)
             if backstep_state == self.initial_state.hashable():
                 break
 
-        return list(reversed(steps))
+        self.solve_instructions = list(reversed(steps))

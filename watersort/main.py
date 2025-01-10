@@ -1,7 +1,7 @@
 from manim import *
 import networkx as nx
 
-from watersort.helpers import WaterPuzzleState, WaterPuzzleSolver, PourInstruction
+from watersort.helpers import WaterPuzzleState, WaterPuzzleSolver, PourInstruction, HashablePuzzleState
 
 BOTTLE_ROTATION = -PI / 2 + PI / 16
 
@@ -112,42 +112,72 @@ class WaterPuzzle(VGroup):
     scale_factor: float
     playback_speed: float
     color_count: int
-    full_solve_instructions: list[PourInstruction]
+    # full_solve_instructions: list[PourInstruction]
     all_flasks: VGroup
     flasks: list[WaterFlask]
+    solver: WaterPuzzleSolver
+
+    @classmethod
+    def new_random(cls, color_count: int = 9, playback_speed: float = 0.3, random_seed: int = None):
+        puzzle = WaterPuzzleState.new_random(color_count, random_seed=random_seed)
+
+        return cls(
+            puzzle,
+            color_count,
+            playback_speed,
+        )
+
+    @classmethod
+    def new_from_hashable_state(cls, hashable_state: HashablePuzzleState, playback_speed: float = 0.3):
+        puzzle = WaterPuzzleState.from_hashable_state(hashable_state)
+        # breakpoint()
+
+        return cls(
+            puzzle,
+            len(hashable_state) - 2,
+            playback_speed,
+        )
 
     def __init__(
         self,
+        puzzle: WaterPuzzleState,
         color_count: int = 9,
         playback_speed: float = 0.3,
-        random_seed: int = None
     ):
         super().__init__()
+
+        self.puzzle = puzzle
 
         self.color_count = color_count
         self.scale_factor = 1.0
         self.playback_speed = playback_speed
 
-        puzzle = WaterPuzzleState.new_random(self.color_count, random_seed=random_seed)
-
         solver = WaterPuzzleSolver(puzzle)
-        self.full_solve_instructions = solver.solve()
+        self.solver = solver
 
         flasks = []
-        for flask_n in range(color_count):
-            flask = WaterFlask([COLOR_OPTIONS[puzzle.pipes[flask_n][i] - 1] for i in range(4)], 4)
+
+        for flask_n, pipe in enumerate(puzzle.pipes):
+            fill_amount = sum([1 for c in pipe if c != 0])
+            flask = WaterFlask([
+                COLOR_OPTIONS[puzzle.pipes[flask_n][i] - 1]
+                if puzzle.pipes[flask_n][i] != 0
+                else WHITE
+                for i in range(4)],
+                fill_amount
+            )
             flask.shift_with_mask(RIGHT * flask_n * 1.5 + LEFT * 1.5 * ((color_count + 1) / 2))
             self.add(flask.big_clipping_mask)
             self.add(flask)
             flasks.append(flask)
-
-        for flask_n in range(2):
-            flask = WaterFlask([WHITE, WHITE, WHITE, WHITE], 0)
-            # flask.shift_with_mask(RIGHT * (color_count + flask_n - 1) * 1.5)
-            flask.shift_with_mask(RIGHT * (color_count + flask_n) * 1.5 + LEFT * 1.5 * ((color_count + 1) / 2))
-            self.add(flask.big_clipping_mask)
-            self.add(flask)
-            flasks.append(flask)
+        #
+        # for flask_n in range(2):
+        #     flask = WaterFlask([WHITE, WHITE, WHITE, WHITE], 0)
+        #     # flask.shift_with_mask(RIGHT * (color_count + flask_n - 1) * 1.5)
+        #     flask.shift_with_mask(RIGHT * (color_count + flask_n) * 1.5 + LEFT * 1.5 * ((color_count + 1) / 2))
+        #     self.add(flask.big_clipping_mask)
+        #     self.add(flask)
+        #     flasks.append(flask)
 
         self.all_flasks = VGroup(*flasks)
         self.all_flasks_and_masks = VGroup(*[f.big_clipping_mask for f in flasks], self.all_flasks)
@@ -235,18 +265,19 @@ class WaterPuzzle(VGroup):
 
 class WaterPuzzleSolved(Scene):
     def construct(self):
-        puzzle = WaterPuzzle(playback_speed=0.2)
+        puzzle = WaterPuzzle.new_random(playback_speed=0.2)
         puzzle.scale_properly(0.75)
         self.add(puzzle)
 
-        puzzle.animate_pours(self, puzzle.full_solve_instructions)
+        puzzle.solver.solve()
+        puzzle.animate_pours(self, puzzle.solver.solve_instructions)
 
         self.wait()
 
 
 class WaterPuzzleExplained(Scene):
     def construct(self):
-        puzzle = WaterPuzzle(color_count=4, playback_speed=1.0, random_seed=1)
+        puzzle = WaterPuzzle.new_random(color_count=4, playback_speed=1.0, random_seed=1)
         puzzle.scale_properly(1.0)
         self.add(puzzle)
 
@@ -567,3 +598,59 @@ class PathFinding(Scene):
         self.remove(self.node_queue)
         self.remove(*self.all_texts)
         pass
+
+
+class WaterSortAsGraph(Scene):
+    def construct(self):
+        orig_puzzle = WaterPuzzle.new_random(color_count=2, playback_speed=0.25, random_seed=1)
+        # self.add(puzzle)
+
+        graph = nx.Graph()
+        orig_puzzle.solver.solve()
+        for edge in orig_puzzle.solver.edges:
+            graph.add_edge(*edge)
+
+        positions = nx.spring_layout(graph)
+
+        rects_by_hash = {}
+
+        z_ind = 10000
+
+        for hashed_flask, position in positions.items():
+            original_flask = orig_puzzle.solver.hashable_to_original_unsorted[hashed_flask]
+            puzzle = WaterPuzzle.new_from_hashable_state(original_flask.pipes, playback_speed=0.25)
+            puzzle_flasks = puzzle.all_flasks
+            fill_color = BLACK
+            if hashed_flask == orig_puzzle.solver.initial_state.hashable():
+                color = WHITE
+                fill_color = GREEN
+            elif puzzle.puzzle.is_solved():
+                color = WHITE
+                fill_color = RED
+            else:
+                color = WHITE
+
+            rect = SurroundingRectangle(puzzle_flasks, color=color, buff=1, corner_radius=1)
+            rect.set_fill(color=fill_color, opacity=1.0)
+            both = VGroup(puzzle_flasks, rect)
+            both.move_to(np.array([*position * 5, 0]))
+            both.scale(0.2)
+            if True: # Set z indexes properly
+                both.set_z_index(z_ind)
+                puzzle_flasks.set_z_index(z_ind + 1)
+                for f in puzzle.flasks:
+                    f.bottle.set_z_index(z_ind + 2)
+                z_ind -= 3
+            rects_by_hash[hashed_flask] = both
+            self.add(both)
+
+        for edge in orig_puzzle.solver.edges:
+            # continue
+            line = Line(
+                rects_by_hash[edge[0]].get_center(),
+                rects_by_hash[edge[1]].get_center(),
+                # ORIGIN
+            )
+            self.add(line)
+
+        self.wait(1)
