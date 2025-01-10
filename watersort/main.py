@@ -604,89 +604,89 @@ class PathFinding(Scene):
 
 class WaterSortAsGraph(Scene):
     def construct(self):
-        orig_puzzle = WaterPuzzle.new_random(color_count=2, playback_speed=0.25, random_seed=1)
-        # self.add(puzzle)
+        initial_state = WaterPuzzleState.new_random(num_colors=2, random_seed=4)
+        solver = WaterPuzzleSolver(initial_state)
+        solver.solve()
 
-        graph = nx.Graph()
-        orig_puzzle.solver.solve()
-        for edge in orig_puzzle.solver.edges:
-            graph.add_edge(*edge)
+        current_nodes = set()
+        current_edges = set()
+        hash_to_puzzle = {}
 
-        positions = nx.spring_layout(graph)
+        desired_scale = 1.0
+        positions = None
 
-        rects_by_hash = {}
+        for i, (distance, hashables) in enumerate(sorted(solver.distance_to_hashables.items())):
+            puzzles_to_add = []
+            for hashable in hashables:
+                current_nodes.add(hashable)
+                current_edges.update([
+                    edge
+                    for edge in solver.edges
+                    if edge[1] == hashable
+                ])
+                hashable_original_pipes = solver.hashable_to_original_unsorted[hashable].pipes
+                all_flasks = WaterPuzzle.new_from_hashable_state(hashable_original_pipes).all_flasks
+                for flask in all_flasks:
+                    flask.rotating = True
 
-        z_ind = 10000
+                flasks = VGroup(all_flasks).set_z_index(20)
+                rect = SurroundingRectangle(
+                    flasks,
+                    buff=1,
+                    corner_radius=1,
+                    color=WHITE,
+                ).set_z_index(10).set_fill(color=BLACK, opacity=1.0)
+                both = VGroup(flasks, rect)
+                puzzles_to_add.append(both)
+                hash_to_puzzle[hashable] = both
 
-        everything_vgroup = VGroup()
-        start_piece = None
-        end_piece = None
+            graph = nx.Graph()
+            for node in current_nodes:
+                graph.add_node(node)
+            for edge in current_edges:
+                graph.add_edge(*edge)
 
-        things_by_distance = {}
+            initial_positions = positions if positions is not None else {}
+            for node in current_nodes:
+                if node not in initial_positions:
+                    start_nodes_for_this_node = [
+                        e[0]
+                        for e in current_edges
+                        if e[1] == node and e[0] in initial_positions
+                    ]
+                    if not start_nodes_for_this_node:
+                        initial_positions[node] = np.array([0, 0])
+                    else:
+                        initial_positions[node] = (
+                            initial_positions[start_nodes_for_this_node[0]]
+                            + np.array([np.random.uniform(-1, 1), np.random.uniform(-1, 1)]) * 0.01
+                        )
 
-        for hashed_flask, position in positions.items():
-            original_flask = orig_puzzle.solver.hashable_to_original_unsorted[hashed_flask]
-            puzzle = WaterPuzzle.new_from_hashable_state(original_flask.pipes, playback_speed=0.25)
-            for flask in puzzle.flasks:
-                flask.rotating = True
-            puzzle_flasks = puzzle.all_flasks
-            fill_color = BLACK
-            is_start = False
-            is_end = False
-            if hashed_flask == orig_puzzle.solver.initial_state.hashable():
-                is_start = True
-                color = GREEN
-                # fill_color = GREEN
-            elif puzzle.puzzle.is_solved():
-                is_end = True
-                color = RED
-                # fill_color = RED
-            else:
-                color = WHITE
-
-            rect = SurroundingRectangle(puzzle_flasks, color=color, buff=1, corner_radius=1)
-            rect.set_fill(color=fill_color, opacity=1.0)
-            both = VGroup(puzzle_flasks, rect)
-            both.move_to(np.array([*position * 3, 0]))
-            both.scale(0.1)
-            if True: # Set z indexes properly
-                both.set_z_index(z_ind)
-                puzzle_flasks.set_z_index(z_ind + 1)
-                for f in puzzle.flasks:
-                    f.bottle.set_z_index(z_ind + 2)
-                z_ind -= 3
-            rects_by_hash[hashed_flask] = both
-            if is_start:
-                start_piece = both
-            if is_end:
-                end_piece = both
-            everything_vgroup.add(both)
-
-            # Distance stuff
-            distance = orig_puzzle.solver.hashable_to_original_unsorted[hashed_flask].distance
-            if distance not in things_by_distance:
-                things_by_distance[distance] = []
-            things_by_distance[distance].append(both)
-
-        for edge in orig_puzzle.solver.edges:
-            # continue
-            line = Line(
-                rects_by_hash[edge[0]].get_center(),
-                rects_by_hash[edge[1]].get_center(),
-                # ORIGIN
+            positions = nx.spring_layout(
+                graph,
+                pos=initial_positions,  # TODO: Set the new ones close to the parents by default, not randomly
+                k=0.2
             )
-            everything_vgroup.add(line)
+            desired_scale_old = desired_scale
+            desired_scale = 1 / (i + 1) / 2
 
-            distance = orig_puzzle.solver.hashable_to_original_unsorted[edge[1]].distance
-            things_by_distance[distance].append(line)
+            anims = []
+            for hashed, position in positions.items():
+                if hashed in hash_to_puzzle:
+                    to_be_moved = hash_to_puzzle[hashed]
+                    if to_be_moved in puzzles_to_add:
+                        hash_to_puzzle[hashed].move_to(np.array([*position * 5, 0])).scale(desired_scale)
+                    else:
+                        anims.append(
+                            to_be_moved.animate
+                                .move_to(np.array([*position * 5, 0]))
+                                .scale(desired_scale / desired_scale_old)
+                        )
 
-        # everything_vgroup.move_to(-start_piece.get_center())
-        # everything_vgroup.scale(0.2)
+            if anims:
+                self.play(*anims)
+            self.play(FadeIn(*puzzles_to_add))
 
-        all_things_added = []
-        for distance in sorted(things_by_distance.keys()):
-            things_to_add = things_by_distance[distance]
-            all_things_added.extend(things_to_add)
-            self.play(
-                *[FadeIn(thing) for thing in things_to_add],
-            )
+            print("ASDF", distance, len(hashables))
+
+        self.wait(0.1)

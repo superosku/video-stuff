@@ -132,8 +132,8 @@ class WaterPuzzleSolver:
         self.nodes: set[HashablePuzzleState] = set()
         self.edges: set[tuple[HashablePuzzleState, HashablePuzzleState]] = set()
         self.solve_instructions = []
-        self.hashable_to_original_unsorted = {}
 
+        self.hashable_to_original_unsorted = {}
         self.distance_to_hashables = {}
 
         if self.initial_state.is_solved():
