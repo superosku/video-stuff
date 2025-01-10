@@ -7,6 +7,8 @@ BOTTLE_ROTATION = -PI / 2 + PI / 16
 
 
 class WaterFlask(VGroup):
+    rotating: bool
+
     def __init__(self, colors: List[ManimColor], fill_amount: int):
         super().__init__()
 
@@ -616,15 +618,25 @@ class WaterSortAsGraph(Scene):
 
         z_ind = 10000
 
+        everything_vgroup = VGroup()
+        start_piece = None
+        end_piece = None
+
         for hashed_flask, position in positions.items():
             original_flask = orig_puzzle.solver.hashable_to_original_unsorted[hashed_flask]
             puzzle = WaterPuzzle.new_from_hashable_state(original_flask.pipes, playback_speed=0.25)
+            for flask in puzzle.flasks:
+                flask.rotating = True
             puzzle_flasks = puzzle.all_flasks
             fill_color = BLACK
+            is_start = False
+            is_end = False
             if hashed_flask == orig_puzzle.solver.initial_state.hashable():
+                is_start = True
                 color = WHITE
                 fill_color = GREEN
             elif puzzle.puzzle.is_solved():
+                is_end = True
                 color = WHITE
                 fill_color = RED
             else:
@@ -642,7 +654,12 @@ class WaterSortAsGraph(Scene):
                     f.bottle.set_z_index(z_ind + 2)
                 z_ind -= 3
             rects_by_hash[hashed_flask] = both
-            self.add(both)
+            if is_start:
+                start_piece = both
+            if is_end:
+                end_piece = both
+            everything_vgroup.add(both)
+            # self.add(both)
 
         for edge in orig_puzzle.solver.edges:
             # continue
@@ -651,6 +668,18 @@ class WaterSortAsGraph(Scene):
                 rects_by_hash[edge[1]].get_center(),
                 # ORIGIN
             )
-            self.add(line)
+            everything_vgroup.add(line)
+            # self.add(line)
 
-        self.wait(1)
+        everything_vgroup.move_to(-start_piece.get_center())
+        self.add(everything_vgroup)
+
+        self.wait(0.5)
+
+        self.play(
+            everything_vgroup.animate.move_to(everything_vgroup.get_center() - end_piece.get_center()),
+            run_time=3,
+            rate_function=linear
+        )
+
+        self.wait(0.5)
