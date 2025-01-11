@@ -118,6 +118,7 @@ class WaterPuzzle(VGroup):
     all_flasks: VGroup
     flasks: list[WaterFlask]
     solver: WaterPuzzleSolver
+    puzzle: WaterPuzzleState
 
     @classmethod
     def new_random(cls, color_count: int = 9, playback_speed: float = 0.3, random_seed: int = None):
@@ -604,7 +605,7 @@ class PathFinding(Scene):
 
 class WaterSortAsGraph(Scene):
     def construct(self):
-        initial_state = WaterPuzzleState.new_random(num_colors=2, random_seed=4)
+        initial_state = WaterPuzzleState.new_random(num_colors=3, random_seed=4)
         solver = WaterPuzzleSolver(initial_state)
         solver.solve()
 
@@ -614,6 +615,7 @@ class WaterSortAsGraph(Scene):
 
         desired_scale = 1.0
         positions = None
+        first_node = list(solver.distance_to_hashables[0])[0]
 
         all_lines = []
 
@@ -628,7 +630,8 @@ class WaterSortAsGraph(Scene):
                     if edge[1] == hashable
                 ])
                 hashable_original_pipes = solver.hashable_to_original_unsorted[hashable].pipes
-                all_flasks = WaterPuzzle.new_from_hashable_state(hashable_original_pipes).all_flasks
+                puzzle = WaterPuzzle.new_from_hashable_state(hashable_original_pipes)
+                all_flasks = puzzle.all_flasks
                 for flask in all_flasks:
                     flask.rotating = True
 
@@ -637,13 +640,21 @@ class WaterSortAsGraph(Scene):
                     flasks,
                     buff=1,
                     corner_radius=1,
-                    color=WHITE,
-                ).set_z_index(10).set_fill(color=BLACK, opacity=1.0)
+                    color=GREEN if puzzle.puzzle.is_solved() else WHITE,
+                ).set_z_index(10).set_fill(
+                    color=GREEN if puzzle.puzzle.is_solved() else BLACK,
+                    opacity=1.0
+                )
                 both = VGroup(flasks, rect)
                 puzzles_to_add.append(both)
                 hash_to_puzzle[hashable] = both
 
                 for edge in current_edges:
+                    # TODO: Should add direction to edges? Some arrows perhaps?
+                    if edge[0] == hashable and edge[1] in hash_to_puzzle:
+                        # TODO: Does this fix my issues? Does it add duplicate edges?
+                        # TODO: HMM maybe it is bi directional if both are added?
+                        line_edges_to_add.append(edge)
                     if edge[1] == hashable and edge[0] in hash_to_puzzle:
                         line_edges_to_add.append(edge)
 
@@ -669,13 +680,22 @@ class WaterSortAsGraph(Scene):
             for edge in current_edges:
                 graph.add_edge(*edge)
 
-            positions = nx.spring_layout(
-                graph,
-                pos=initial_positions,  # TODO: Set the new ones close to the parents by default, not randomly
-                k=0.2
-            )
+            positions = initial_positions
+            positions[first_node] = np.array([0, 0])
+
+            y_distance = 0.2
+            for j in range(10):
+                positions = nx.spring_layout(
+                    graph,
+                    pos=positions,  # TODO: Set the new ones close to the parents by default, not randomly
+                    # fixed=first_node  # First node always at the center
+                )
+                for hash, position in positions.items():
+                    hash_distance = solver.hashable_to_original_unsorted[hash].distance
+                    position[1] = -hash_distance * y_distance + i * y_distance / 2
+
             desired_scale_old = desired_scale
-            desired_scale = 1 / (i + 1) / 2
+            desired_scale = (1 / (i + 1)) * 0.5
 
             hash_to_new_pos = {}
 
