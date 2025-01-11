@@ -615,8 +615,11 @@ class WaterSortAsGraph(Scene):
         desired_scale = 1.0
         positions = None
 
+        all_lines = []
+
         for i, (distance, hashables) in enumerate(sorted(solver.distance_to_hashables.items())):
             puzzles_to_add = []
+            line_edges_to_add = []
             for hashable in hashables:
                 current_nodes.add(hashable)
                 current_edges.update([
@@ -639,6 +642,10 @@ class WaterSortAsGraph(Scene):
                 both = VGroup(flasks, rect)
                 puzzles_to_add.append(both)
                 hash_to_puzzle[hashable] = both
+
+                for edge in current_edges:
+                    if edge[1] == hashable and edge[0] in hash_to_puzzle:
+                        line_edges_to_add.append(edge)
 
             graph = nx.Graph()
             for node in current_nodes:
@@ -670,22 +677,52 @@ class WaterSortAsGraph(Scene):
             desired_scale_old = desired_scale
             desired_scale = 1 / (i + 1) / 2
 
+            hash_to_new_pos = {}
+
             anims = []
             for hashed, position in positions.items():
                 if hashed in hash_to_puzzle:
                     to_be_moved = hash_to_puzzle[hashed]
+                    new_pos = np.array([*position * 5, 0])
+                    hash_to_new_pos[hashed] = new_pos
                     if to_be_moved in puzzles_to_add:
-                        hash_to_puzzle[hashed].move_to(np.array([*position * 5, 0])).scale(desired_scale)
+                        hash_to_puzzle[hashed].move_to(new_pos).scale(desired_scale)
                     else:
                         anims.append(
                             to_be_moved.animate
-                                .move_to(np.array([*position * 5, 0]))
+                                .move_to(new_pos)
                                 .scale(desired_scale / desired_scale_old)
                         )
 
+            for line in all_lines:
+                anims.append(
+                    Transform(
+                        line,
+                        Line(
+                            hash_to_new_pos[line.from_puzzle_hash],
+                            hash_to_new_pos[line.to_puzzle_hash],
+                            color=WHITE,
+                        )
+                    )
+                )
+
+            lines_to_add = []
+            for edge_to_add in line_edges_to_add:
+                new_line = Line(
+                    hash_to_new_pos[edge_to_add[0]],
+                    hash_to_new_pos[edge_to_add[1]],
+                    color=WHITE,
+                )
+                new_line.from_puzzle_hash = edge_to_add[0]
+                new_line.to_puzzle_hash = edge_to_add[1]
+                lines_to_add.append(new_line)
+
             if anims:
                 self.play(*anims)
-            self.play(FadeIn(*puzzles_to_add))
+
+            self.play(FadeIn(*puzzles_to_add, *lines_to_add))
+
+            all_lines += lines_to_add
 
             print("ASDF", distance, len(hashables))
 
