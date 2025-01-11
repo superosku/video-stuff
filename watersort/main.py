@@ -647,12 +647,6 @@ class WaterSortAsGraph(Scene):
                     if edge[1] == hashable and edge[0] in hash_to_puzzle:
                         line_edges_to_add.append(edge)
 
-            graph = nx.Graph()
-            for node in current_nodes:
-                graph.add_node(node)
-            for edge in current_edges:
-                graph.add_edge(*edge)
-
             initial_positions = positions if positions is not None else {}
             for node in current_nodes:
                 if node not in initial_positions:
@@ -665,9 +659,15 @@ class WaterSortAsGraph(Scene):
                         initial_positions[node] = np.array([0, 0])
                     else:
                         initial_positions[node] = (
-                            initial_positions[start_nodes_for_this_node[0]]
-                            + np.array([np.random.uniform(-1, 1), np.random.uniform(-1, 1)]) * 0.01
+                                initial_positions[start_nodes_for_this_node[0]]
+                                + np.array([np.random.uniform(-1, 1), np.random.uniform(-1, 1)]) * 0.01
                         )
+
+            graph = nx.Graph()
+            for node in current_nodes:
+                graph.add_node(node)
+            for edge in current_edges:
+                graph.add_edge(*edge)
 
             positions = nx.spring_layout(
                 graph,
