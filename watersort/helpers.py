@@ -142,9 +142,11 @@ class WaterPuzzleSolver:
         while True:
             if len(queue) == 0:
                 if solved_state is not None:
-                    print("Solved!")
+                    pass
+                    #print("Solved!")
                 else:
-                    print("No solution found")
+                    pass
+                    #print("No solution found")
                 break
             current_state = queue.pop(0)
             if current_state.hashable() not in self.hashable_to_original_unsorted:
