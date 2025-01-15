@@ -107,7 +107,11 @@ class WaterFlask(VGroup):
         self.bottle.set_z_index(self.bottle.get_z_index() + amount)
 
 
-COLOR_OPTIONS = [YELLOW, BLUE, RED, GREEN, ORANGE, PURPLE, WHITE, GREY, PINK]
+COLOR_OPTIONS = [
+    YELLOW, BLUE, RED, GREEN, ORANGE, PURPLE, WHITE, GREY, PINK,
+    LIGHT_PINK, LIGHT_GREY, LIGHT_BROWN, GREY_BROWN, DARK_BROWN, DARK_GREY, DARKER_GREY,
+    MAROON, GOLD, TEAL, TEAL_E, GREEN_A, GREEN_B, GREEN_C, GREEN_D, GREEN_E, PURE_GREEN,
+]
 
 
 class WaterPuzzle(VGroup):
@@ -747,3 +751,61 @@ class WaterSortAsGraph(Scene):
             print("ASDF", distance, len(hashables))
 
         self.wait(0.1)
+
+
+class HarderAndHarder(Scene):
+    def construct(self):
+        puzzle1 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=2, random_seed=4))
+        puzzle2 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=4, random_seed=4))
+        puzzle3 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=8, random_seed=4))
+        puzzle4 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=16, random_seed=4))
+        puzzle5 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=len(COLOR_OPTIONS), random_seed=4))
+
+        puzzles = [
+            puzzle1, puzzle2, puzzle3, puzzle4, puzzle5
+        ]
+        puzzle_scales = [
+            1.0, 0.9, 0.8, 0.5, 0.3
+        ]
+
+        puzzle_centers = [
+
+        ]
+
+        for puzzle, scale in zip(puzzles, puzzle_scales):
+            for flask in puzzle.all_flasks:
+                flask.rotating = False
+            puzzle.scale(scale)
+            # puzzle_centers.append(ORIGIN)
+            puzzle_centers.append(
+                ORIGIN - (puzzle.all_flasks.get_center() - puzzle.all_flasks_and_masks.get_center()) * scale
+            )
+
+        off_screen = 8
+        run_time = 3
+
+        for puzzle, center in zip(puzzles, puzzle_centers):
+            puzzle.move_to(center + DOWN * off_screen)
+
+        self.play(puzzle1.animate.move_to(puzzle_centers[0]), run_time=run_time)
+
+        for (p1, c1), (p2, c2) in zip(
+            zip(puzzles[1:], puzzle_centers[1:]),
+            zip(puzzles[:-1], puzzle_centers[:-1]),
+        ):
+            for flask in p1.all_flasks:
+                flask.rotating = False
+            for flask in p2.all_flasks:
+                flask.rotating = False
+            self.play(p1.animate.move_to(c1), p2.animate.move_to(c2 + UP * off_screen), run_time=run_time)
+
+        self.play(puzzles[-1].animate.move_to(puzzle_centers[-1] + UP * off_screen), run_time=run_time)
+
+        # for puzzle, center, scale in zip(puzzles, puzzle_centers, puzzle_scales):
+        #     puzzle.move_to(center + DOWN * 3).scale(scale)
+        #     self.play(puzzle.animate.move_to(center))
+        #
+        # self.play(FadeIn(puzzle1))
+
+        self.wait()
+
