@@ -402,13 +402,15 @@ class PathFinding(Scene):
         self.add(goal)
 
         # Path finding
-        self.wait()
+        # self.wait()
         self.animate_path_finding()
         self.clear_path_finding_text()
 
+        return
+
         # Transformation from grid to graph
 
-        self.wait()
+        # self.wait()
 
         connecting_lines = []
         edges = []
@@ -445,22 +447,40 @@ class PathFinding(Scene):
                         .set_stroke(WHITE)
                         .set_fill(BLACK, 1)
                 )
+                for square in row
                 if square.fill_color != WHITE
-                else
+            ]
+            for row in self.rows
+        ], [])
+
+        hide_walls_animations = sum([
+            [
                 Transform(
                     square,
                     Dot()
-                        .move_to(square.get_center())
-                        .set_stroke(WHITE, opacity=0)
-                        .set_fill(WHITE, opacity=0)
+                    .move_to(square.get_center())
+                    .set_stroke(WHITE, opacity=0)
+                    .set_fill(WHITE, opacity=0)
                 )
                 for square in row
+                if square.fill_color == WHITE
             ]
             for row in self.rows
         ], [])
 
         self.play(
+            *hide_walls_animations
+        )
+
+        self.wait()
+
+        self.play(
             *transform_to_circles_animations,
+        )
+
+        self.wait()
+
+        self.play(
             *[FadeIn(l) for l in connecting_lines]
         )
 
@@ -553,6 +573,7 @@ class PathFinding(Scene):
         nodes = []
         self.node_queue = VGroup()
         self.add(self.node_queue)
+        self.all_texts = []
         node_i = 0
 
         move_queue_top = ORIGIN + RIGHT * 5 + UP * 2.5
@@ -595,8 +616,6 @@ class PathFinding(Scene):
             )
 
         push_nodes_to_queue([(0, self.start_coords)])
-
-        self.all_texts = []
 
         for i in range(10):
             node_i, distance, current_node = pop_from_node_queue(node_i)
