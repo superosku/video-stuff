@@ -11,7 +11,7 @@ class PourInstruction:
     destination_empty: int
 
 
-HashablePuzzleState = tuple[tuple[int, int, int, int]]
+HashablePuzzleState = tuple[tuple[int, int, int, int], ...]
 
 
 class WaterPuzzleState:
@@ -123,13 +123,51 @@ class WaterPuzzleSolver:
     def __init__(self, initial_state: WaterPuzzleState):
         self.initial_state = initial_state
 
+    def get_winnable_nodes(self) -> list[HashablePuzzleState]:
+        winning_node = [e for e in self.nodes if all(len(set(f)) == 1 for f in e)][0]
+
+        nodes_that_can_win = [winning_node]
+
+        edges_by_e2 = {}
+        for e1, e2 in self.edges:
+            if e2 not in edges_by_e2:
+                edges_by_e2[e2] = set()
+            edges_by_e2[e2].add(e1)
+
+        i = 0
+        while i < len(nodes_that_can_win):
+            node = nodes_that_can_win[i]
+            for node in edges_by_e2.get(node, []):
+                if node not in nodes_that_can_win:
+                    nodes_that_can_win.append(node)
+
+            i += 1
+
+        return nodes_that_can_win
+
+    def get_pour_instructions_into(self, backstep_state: HashablePuzzleState) -> list[PourInstruction]:
+        steps = []
+        while True:
+            try:
+                backstep_state, from_to = self.prev_nexts[backstep_state]
+            except KeyError:
+                assert 0  # TODO: Should this ever happen?
+                # Is not solvable (perhaps already solved?)
+                return []
+            steps.append(from_to)
+            if backstep_state == self.initial_state.hashable():
+                break
+
+        return list(reversed(steps))
+
     def solve(self) -> None:
         queue = [self.initial_state]
         visited = {self.initial_state.hashable()}
-        prev_nexts = {}
+        self.prev_nexts = {}
 
         solved_state = None
         self.nodes: set[HashablePuzzleState] = set()
+        self.nodes_and_distance_that_have_no_moves: list[tuple[int, PourInstruction]] = []
         self.edges: set[tuple[HashablePuzzleState, HashablePuzzleState]] = set()
         self.solve_instructions = []
 
@@ -157,26 +195,20 @@ class WaterPuzzleSolver:
             self.distance_to_hashables[current_state.distance].add(current_state.hashable())
             if current_state.is_solved():
                 solved_state = current_state
-            for from_to, option in current_state.possible_options():
+            possible_options = current_state.possible_options()
+            if len(possible_options) == 0:
+                self.nodes_and_distance_that_have_no_moves.append((current_state.distance, current_state))
+
+            for from_to, option in possible_options:
                 self.edges.add((current_state.hashable(), option.hashable()))
                 if option.hashable() not in visited:
                     visited.add(option.hashable())
                     queue.append(option)
-                    prev_nexts[option.hashable()] = (current_state.hashable(), from_to)
+                    self.prev_nexts[option.hashable()] = (current_state.hashable(), from_to)
 
         if solved_state is None:
             return
 
         backstep_state = solved_state.hashable()
-        steps = []
-        while True:
-            try:
-                backstep_state, from_to = prev_nexts[backstep_state]
-            except KeyError:
-                # Is not solvable (perhaps already solved?)
-                return
-            steps.append(from_to)
-            if backstep_state == self.initial_state.hashable():
-                break
 
-        self.solve_instructions = list(reversed(steps))
+        self.solve_instructions = self.get_pour_instructions_into(backstep_state)

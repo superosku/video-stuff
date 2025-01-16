@@ -1,3 +1,6 @@
+import math
+import random
+
 from manim import *
 import networkx as nx
 
@@ -108,9 +111,10 @@ class WaterFlask(VGroup):
 
 
 COLOR_OPTIONS = [
-    YELLOW, BLUE, RED, GREEN, ORANGE, PURPLE, WHITE, GREY, PINK,
+    YELLOW, BLUE, RED, GREEN, ORANGE, PURPLE, GREY, PINK,
     LIGHT_PINK, LIGHT_GREY, LIGHT_BROWN, GREY_BROWN, DARK_BROWN, DARK_GREY, DARKER_GREY,
     MAROON, GOLD, TEAL, TEAL_E, GREEN_A, GREEN_B, GREEN_C, GREEN_D, GREEN_E, PURE_GREEN,
+    YELLOW_A, BLUE_A, RED_A, PURPLE_A, PURPLE_B, GREY_A, BLUE_B, BLUE_C, BLUE_D, WHITE,
 ]
 
 
@@ -272,32 +276,73 @@ class WaterPuzzle(VGroup):
 
 class WaterPuzzleSolved(Scene):
     def construct(self):
-        puzzle = WaterPuzzle.new_random(playback_speed=0.2)
-        puzzle.scale_properly(0.75)
+        puzzle = WaterPuzzle.new_random(color_count=8, playback_speed=0.2 * (25 / 15), random_seed=444)
+        puzzle.scale_properly(0.8)
+
         self.add(puzzle)
+
+        self.wait(0.5)
 
         puzzle.solver.solve()
         puzzle.animate_pours(self, puzzle.solver.solve_instructions)
 
-        self.wait()
+        self.wait(0.5)
+
+
+def animate_cross_fade_in_out(scene: Scene):
+    circle = Circle(radius=2).set_stroke(width=30, color=PURE_RED).set_fill(opacity=0)
+    line = Line(
+        circle.get_center() + (LEFT + UP) * math.sqrt(2),
+        circle.get_center() + (RIGHT + DOWN) * math.sqrt(2),
+        color=PURE_RED
+    ).set_stroke(width=30)
+    cross_thing = VGroup(circle, line).set_z_index(100)
+    scene.play(FadeIn(cross_thing))
+    scene.play(FadeOut(cross_thing))
 
 
 class WaterPuzzleExplained(Scene):
     def construct(self):
         puzzle = WaterPuzzle.new_random(color_count=4, playback_speed=1.0, random_seed=1)
+        puzzle = WaterPuzzle.new_from_hashable_state(
+            (
+                (1, 1, 4, 1),
+                (4, 2, 2, 2),
+                (4, 2, 3, 3),
+                (1, 3, 4, 3),
+                (0, 0, 0, 0),
+                (0, 0, 0, 0),
+            ),
+            playback_speed=1.0,
+        )
         puzzle.scale_properly(1.0)
         self.add(puzzle)
 
+        self.wait(2)
+
         # Pour to empty spot
-        puzzle.animate_pours(self, [PourInstruction(3, 4, 1, 1, 4)])
+        puzzle.animate_pours(self, [PourInstruction(2, 4, 2, 3, 4)])
+        self.wait(0.5)
+
         # Pour over same color
-        puzzle.animate_pours(self, [PourInstruction(2, 3, 1, 2, 1)])
+        puzzle.animate_pours(self, [PourInstruction(3, 4, 1, 3, 2)])
+        self.wait(4)
+
+        # Animate pouring multiple
+        puzzle.animate_pours(self, [PourInstruction(1, 2, 2, 2, 2)])
+        self.wait(0.5)
+
         # Invalid pour over different color
-        moving_flask = puzzle.flasks[0]
+        from_invalid = 1
+        to_invalid = 3
+        moving_flask = puzzle.flasks[from_invalid]
         moving_flask.change_z_indexes(20)
-        move_dir = puzzle.get_pour_move_dir(0, 4)
-        puzzle.animate_flask_to_pour_position(self, 0, 4)
-        self.play(Indicate(moving_flask, color=RED), run_time=0.5)
+        move_dir = puzzle.get_pour_move_dir(from_invalid, to_invalid)
+        puzzle.animate_flask_to_pour_position(self, from_invalid, to_invalid)
+
+        # self.play(Indicate(moving_flask, color=RED), run_time=0.5)
+        animate_cross_fade_in_out(self)
+
         # Animate invalid pour bottle back to position
         moving_flask.rotating = True
         self.play(
@@ -307,7 +352,7 @@ class WaterPuzzleExplained(Scene):
         moving_flask.rotating = False
         moving_flask.change_z_indexes(-20)
 
-        self.wait()
+        self.wait(1)
 
 
 class PathFinding(Scene):
@@ -765,7 +810,7 @@ class HarderAndHarder(Scene):
             puzzle1, puzzle2, puzzle3, puzzle4, puzzle5
         ]
         puzzle_scales = [
-            1.0, 0.9, 0.8, 0.5, 0.3
+            1.0, 0.9, 0.8, 0.5, 0.25
         ]
 
         puzzle_centers = [
@@ -782,30 +827,76 @@ class HarderAndHarder(Scene):
             )
 
         off_screen = 8
-        run_time = 3
+        run_time = 1
+        wait_time = 1
 
         for puzzle, center in zip(puzzles, puzzle_centers):
             puzzle.move_to(center + DOWN * off_screen)
 
         self.play(puzzle1.animate.move_to(puzzle_centers[0]), run_time=run_time)
 
-        for (p1, c1), (p2, c2) in zip(
+        self.wait(wait_time)
+
+        for i, ((p1, c1), (p2, c2)) in enumerate(zip(
             zip(puzzles[1:], puzzle_centers[1:]),
             zip(puzzles[:-1], puzzle_centers[:-1]),
-        ):
+        )):
             for flask in p1.all_flasks:
                 flask.rotating = False
             for flask in p2.all_flasks:
                 flask.rotating = False
             self.play(p1.animate.move_to(c1), p2.animate.move_to(c2 + UP * off_screen), run_time=run_time)
+            # Last round wait more
+            if i < len(puzzles) - 2:
+                self.wait(wait_time)
+            else:
+                self.wait(3)
 
         self.play(puzzles[-1].animate.move_to(puzzle_centers[-1] + UP * off_screen), run_time=run_time)
 
-        # for puzzle, center, scale in zip(puzzles, puzzle_centers, puzzle_scales):
-        #     puzzle.move_to(center + DOWN * 3).scale(scale)
-        #     self.play(puzzle.animate.move_to(center))
-        #
-        # self.play(FadeIn(puzzle1))
-
         self.wait()
+
+
+class GettingStuck(Scene):
+    def construct(self):
+        puzz = WaterPuzzleState.new_random(num_colors=8, random_seed=123)
+        puzzle = WaterPuzzle(puzz)
+        solver = puzzle.solver
+        solver.solve()
+
+        stuck_nodes_by_distance = sorted(solver.nodes_and_distance_that_have_no_moves, key=lambda x: x[0])
+        old_puzzle = None
+
+        for n in [0, 5, 21]:
+            puzz = WaterPuzzleState.new_random(num_colors=8, random_seed=123)
+            puzzle = WaterPuzzle(puzz)
+
+            pour_instructions = solver.get_pour_instructions_into(stuck_nodes_by_distance[n][1].hashable())
+
+            scale = 0.8
+            puzzle.scale_properly(scale)
+            puzzle.move_to(
+                ORIGIN - (puzzle.all_flasks.get_center() - puzzle.all_flasks_and_masks.get_center()) * scale
+            )
+            puzzle.shift(UP * 8)
+            for flask in puzzle.flasks:
+                flask.rotating = True
+            if old_puzzle is not None:
+                self.play(
+                    puzzle.animate.shift(DOWN * 8),
+                    old_puzzle.animate.shift(DOWN * 8)
+                )
+            else:
+                self.play(puzzle.animate.shift(DOWN * 8))
+            for flask in puzzle.flasks:
+                flask.rotating = False
+
+            puzzle.animate_pours(self, pour_instructions)
+
+            animate_cross_fade_in_out(self)
+
+            for flask in puzzle.flasks:
+                flask.rotating = True
+            old_puzzle = puzzle
+            # self.play(puzzle.animate.shift(DOWN * 8))
 
