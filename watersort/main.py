@@ -393,10 +393,12 @@ class PathFinding(Scene):
         person_square = squares_by_coords[self.start_coords]
         person = Circle(radius=0.2).move_to(person_square.get_center()).set_z_index(20)
         person.set_fill(RED, 1.0)
+        self.person = person
 
         goal_square = squares_by_coords[self.goal_coords]
         goal = Triangle().move_to(goal_square.get_center()).set_z_index(20).scale(0.2)
         goal.set_fill(GREEN, 1.0)
+        self.goal = goal
 
         self.add(person)
         self.add(goal)
@@ -405,8 +407,6 @@ class PathFinding(Scene):
         # self.wait()
         self.animate_path_finding()
         self.clear_path_finding_text()
-
-        return
 
         # Transformation from grid to graph
 
@@ -579,48 +579,60 @@ class PathFinding(Scene):
         move_queue_top = ORIGIN + RIGHT * 5 + UP * 2.5
 
         def push_nodes_to_queue(node_distances: list[tuple[int, tuple[int, int]]]) -> list[Animation]:
-            new_texts = []
+            # new_texts = []
             for distance, coords in node_distances:
                 nodes.append((distance, coords))
-                new_text = Text(f"{distance} ({coords[0], coords[1]})")
-                node_mobjects.append(new_text)
-                new_text.set_z_index(30).scale(0.5)
-                new_text.align_to(self.node_queue)
-                self.node_queue.add(new_text)
-                new_texts.append(new_text)
-            self.node_queue.arrange(DOWN, buff=0.1)
-            self.node_queue.move_to(move_queue_top, aligned_edge=UP)
-            return [
-                FadeIn(new_text)
-                for new_text in new_texts
-            ]
+            #     new_text = Text(f"{distance} ({coords[0], coords[1]})")
+            #     node_mobjects.append(new_text)
+            #     new_text.set_z_index(30).scale(0.5)
+            #     new_text.align_to(self.node_queue)
+            #     self.node_queue.add(new_text)
+            #     new_texts.append(new_text)
+            # self.node_queue.arrange(DOWN, buff=0.1)
+            # self.node_queue.move_to(move_queue_top, aligned_edge=UP)
+            # return [
+            #     FadeIn(new_text)
+            #     for new_text in new_texts
+            # ]
 
         def pop_from_node_queue(node_i) -> tuple[int, int, tuple[int, int]]:
             distance, coords = nodes[node_i]
-            node_to_be_removed = node_mobjects[node_i]
+            # node_to_be_removed = node_mobjects[node_i]
 
-            self.node_queue.remove(node_to_be_removed)
+            # self.node_queue.remove(node_to_be_removed)
             # node_queue.arrange(DOWN, buff=0.1)
             # node_queue.move_to(move_queue_top, aligned_edge=UP)
 
-            self.play(
-                FadeOut(node_to_be_removed),
-                self.node_queue.animate
-                .arrange(DOWN, buff=0.1)
-                .move_to(move_queue_top, aligned_edge=UP),
-                run_time=0.2
-            )
+            # self.play(
+            #     FadeOut(node_to_be_removed),
+            #     self.node_queue.animate
+            #     .arrange(DOWN, buff=0.1)
+            #     .move_to(move_queue_top, aligned_edge=UP),
+            #     run_time=0.2
+            # )
 
             return (
                 (node_i + 1, distance, coords)
             )
 
+        start_text = (
+            Text(f"0")
+            .set_z_index(30)
+            .scale(0.5)
+            .move_to(self.rows[self.start_coords[1]][self.start_coords[0]].get_center())
+        )
+        self.all_texts.append(start_text)
         push_nodes_to_queue([(0, self.start_coords)])
 
-        for i in range(10):
+        all_anims = []
+
+        all_anims.append([FadeIn(start_text)])
+
+        for i in range(500):
             node_i, distance, current_node = pop_from_node_queue(node_i)
 
             if current_node == self.goal_coords:
+                assert 0  # This should not happen
                 print("FOUND SOLUTION")
                 break
             x, y = current_node
@@ -653,13 +665,78 @@ class PathFinding(Scene):
                         Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(self.rows[y - 1][x].get_center())
                     )
 
+            asdf = [(distance + 1, node) for node in nodes_to_push]
+            push_nodes_to_queue(asdf)
+
             animations = [
-                *push_nodes_to_queue([(distance + 1, node) for node in nodes_to_push]),
+                # *push_nodes_to_queue([(distance + 1, node) for node in nodes_to_push]),
                 *[FadeIn(text) for text in texts_to_push]
             ]
             self.all_texts.extend(texts_to_push)
-            if animations:
-                self.play(*animations, run_time=0.5)
+            all_anims.append(animations)
+            # if animations:
+            #     self.play(*animations, run_time=0.5)
+
+            to_break = False
+            for _, node in asdf:
+                if node == self.goal_coords:
+                    print("FOUND SOLUTION")
+                    to_break = True
+
+            if to_break:
+                break
+
+        anim_group = AnimationGroup(
+            *[AnimationGroup(*anims) for anims in all_anims if anims],
+            run_time=4,
+            lag_ratio=0.2,
+        )
+        self.play(anim_group)
+        self.wait()
+
+        win_distance, (win_x, win_y) = [n for n in nodes if n[1] == self.goal_coords][0]
+        cur_dist, cur_x, cur_y = win_distance, win_x, win_y
+
+        path = []
+
+        for i in range(100):
+            path.append((cur_x, cur_y))
+            close_to_wins = sorted([
+                (d, (x, y)) for d, (x, y) in nodes
+                if cur_x - 1 <= x <= cur_x + 1  # Next to this x wise
+                and cur_y - 1 <= y <= cur_y + 1  # Next to this y wise
+                and abs(cur_x - x) + abs(cur_y - y) == 1  # But not diagonal
+            ])
+            cur_dist, (cur_x, cur_y) = close_to_wins[0]
+            if (cur_x, cur_y) == self.start_coords:
+                path.append((cur_x, cur_y))
+                break
+
+        path_centers = [self.rows[y][x].get_center() for x, y in path]
+        # line_coords = [
+        #     (a, b)
+        #     for a, b in zip(path_centers, path_centers[1:])
+        # ]
+        # lines = [
+        #     Line(a, b, color=PURPLE).set_z_index(1000)
+        #     for a, b in line_coords
+        # ]
+        # self.play(FadeIn(*lines))
+        thing = Rectangle().set_points_smoothly(
+            path_centers
+        ).set_fill(BLUE, opacity=0).set_stroke(PURPLE, opacity=1, width=5).set_z_index(1000000)
+
+        self.play(Create(thing), run_time=4)
+
+        self.play(MoveAlongPath(self.goal, thing), run_time=4)
+
+        self.wait()
+
+        self.play(FadeOut(thing), FadeOut(self.goal))
+        self.goal.move_to(self.rows[self.goal_coords[1]][self.goal_coords[0]].get_center())
+        self.play(FadeIn(self.goal))
+
+        self.wait()
 
     def clear_path_finding_text(self):
         self.play(
@@ -668,6 +745,7 @@ class PathFinding(Scene):
         )
         self.remove(self.node_queue)
         self.remove(*self.all_texts)
+        self.all_texts = 0
         pass
 
 
