@@ -408,6 +408,8 @@ class PathFinding(Scene):
         self.animate_path_finding()
         self.clear_path_finding_text()
 
+        # return  # TODO: Temporary to speedup animation
+
         # Transformation from grid to graph
 
         # self.wait()
@@ -615,20 +617,23 @@ class PathFinding(Scene):
                 (node_i + 1, distance, coords)
             )
 
-        start_text = (
-            Text(f"0")
-            .set_z_index(30)
-            .scale(0.5)
-            .move_to(self.rows[self.start_coords[1]][self.start_coords[0]].get_center())
-        )
-        self.all_texts.append(start_text)
-        push_nodes_to_queue([(0, self.start_coords)])
+        def get_text_to_push(distance, coords):
+            center = self.rows[coords[1]][coords[0]].get_center()
+            return VGroup(
+                Text(f"{distance}").set_z_index(30).scale(0.5).move_to(center),
+                Circle(radius=0.2).move_to(center).set_z_index(30)
+            )
 
         all_anims = []
 
+        start_text = get_text_to_push(0, self.start_coords)
+        self.all_texts.append(start_text)
         all_anims.append([FadeIn(start_text)])
 
-        for i in range(500):
+        push_nodes_to_queue([(0, self.start_coords)])
+
+        for _ in range(500):
+            text_to_fade_out = self.all_texts[node_i]
             node_i, distance, current_node = pop_from_node_queue(node_i)
 
             if current_node == self.goal_coords:
@@ -643,34 +648,36 @@ class PathFinding(Scene):
             if x + 1 < self.width and self.rows[y][x + 1].fill_color != WHITE:
                 if not any([node[1] == (x + 1, y) for node in nodes]):
                     nodes_to_push.append((x + 1, y))
-                    texts_to_push.append(
-                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(self.rows[y][x + 1].get_center())
-                    )
+                    texts_to_push.append(get_text_to_push(distance + 1, (x + 1, y)))
             if y + 1 < self.height and self.rows[y + 1][x].fill_color != WHITE:
                 if not any([node[1] == (x, y + 1) for node in nodes]):
                     nodes_to_push.append((x, y + 1))
-                    texts_to_push.append(
-                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(self.rows[y + 1][x].get_center())
-                    )
+                    texts_to_push.append(get_text_to_push(distance + 1, (x, y + 1)))
             if x - 1 >= 0 and self.rows[y][x - 1].fill_color != WHITE:
                 if not any([node[1] == (x - 1, y) for node in nodes]):
                     nodes_to_push.append((x - 1, y))
-                    texts_to_push.append(
-                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(self.rows[y][x - 1].get_center())
-                    )
+                    texts_to_push.append(get_text_to_push(distance + 1, (x - 1, y)))
             if y - 1 >= 0 and self.rows[y - 1][x].fill_color != WHITE:
                 if not any([node[1] == (x, y - 1) for node in nodes]):
                     nodes_to_push.append((x, y - 1))
-                    texts_to_push.append(
-                        Text(f"{distance + 1}").set_z_index(30).scale(0.5).move_to(self.rows[y - 1][x].get_center())
-                    )
+                    texts_to_push.append(get_text_to_push(distance + 1, (x, y - 1)))
 
             asdf = [(distance + 1, node) for node in nodes_to_push]
             push_nodes_to_queue(asdf)
 
+            # texts_to_push = [
+            #     VGroup(
+            #         t,
+            #         # SurroundingRectangle(t, buff=0.1, corner_radius=0.2).set_z_index(30),
+            #         Circle(radius=0.2).move_to(t.get_center()).set_z_index(30)
+            #     )
+            #     for t in texts_to_push
+            # ]
+
             animations = [
                 # *push_nodes_to_queue([(distance + 1, node) for node in nodes_to_push]),
-                *[FadeIn(text) for text in texts_to_push]
+                *[FadeIn(text) for text in texts_to_push],
+                FadeOut(text_to_fade_out[1])
             ]
             self.all_texts.extend(texts_to_push)
             all_anims.append(animations)
@@ -686,12 +693,16 @@ class PathFinding(Scene):
             if to_break:
                 break
 
-        anim_group = AnimationGroup(
-            *[AnimationGroup(*anims) for anims in all_anims if anims],
+        all_sub_anims = [AnimationGroup(*anims) for anims in all_anims if anims]
+        slow_and_fast_split = 6
+
+        for anim in all_sub_anims[0:slow_and_fast_split]:
+            self.play(anim)
+        self.play(AnimationGroup(
+            all_sub_anims[slow_and_fast_split:],
             run_time=4,
             lag_ratio=0.2,
-        )
-        self.play(anim_group)
+        ))
         self.wait()
 
         win_distance, (win_x, win_y) = [n for n in nodes if n[1] == self.goal_coords][0]
@@ -711,6 +722,8 @@ class PathFinding(Scene):
             if (cur_x, cur_y) == self.start_coords:
                 path.append((cur_x, cur_y))
                 break
+
+        # return  # TODO: Temporary to speedup animation
 
         path_centers = [self.rows[y][x].get_center() for x, y in path]
         # line_coords = [
