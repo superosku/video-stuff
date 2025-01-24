@@ -790,8 +790,7 @@ class WaterSortAsGraph(Scene):
             positions = initial_positions
             positions[first_node] = np.array([0, 0])
 
-            y_distance = 0.2
-            y_distance = ([0.5, 0.4, 0.3] + [0.2] * 20)[i]
+            y_distance = ([0.75, 0.55, 0.45, 0.3, 0.25] + [0.2] * 20)[i]
             for j in range(10):
                 positions = nx.spring_layout(
                     graph,
@@ -858,15 +857,16 @@ class WaterSortAsGraph(Scene):
         fade_out_anims = []
         for hash, puzzle in hash_to_puzzle.items():
             if hash not in path_nodes:
-                fade_out_anims.append(puzzle.animate.set_stroke(opacity=0.1))
+                fade_out_anims.append(puzzle.animate.set_stroke(opacity=0.3).set_fill(opacity=0.3))
+                # TODO: Should set the fill separately to different parts of the flasks? Ie. not on the masks and such
         for line in all_lines:
             if line.from_puzzle_hash not in path_nodes or line.to_puzzle_hash not in path_nodes:
-                fade_out_anims.append(line.animate.set_stroke(opacity=0.1))
+                fade_out_anims.append(line.animate.set_stroke(opacity=0.3))
         self.play(*fade_out_anims)
 
         # Zoom in
         self.play(
-            *[p.animate.scale(1.5) for k, p in hash_to_puzzle.items() if k in path_nodes],
+            *[p.animate.scale(2.0) for k, p in hash_to_puzzle.items() if k in path_nodes],
             run_time=2
         )
 
@@ -875,7 +875,7 @@ class WaterSortAsGraph(Scene):
             *[p for p in hash_to_puzzle.values()],
             *all_lines
         )
-        zoom_in_factor = 2.5
+        zoom_in_factor = 3.2
         all_vgroup.scale(zoom_in_factor)
         todo_center = hash_to_puzzle[path_nodes[-1]].get_center()
         all_vgroup.scale(1/zoom_in_factor)
@@ -894,7 +894,8 @@ class WaterSortAsGraph(Scene):
         # self.play(FadeIn(Dot().move_to(all_vgroup.get_center())))
         # self.wait(0.5)
 
-        self.play(MoveAlongPath(all_vgroup, thing), run_time=6) #, rate_func=linear)
+        # self.play(MoveAlongPath(all_vgroup, thing), run_time=6) #, rate_func=linear)
+        self.play(MoveAlongPath(all_vgroup, thing), run_time=6, rate_func=rate_functions.ease_in_out_sine)
 
         # Wait
         self.wait(0.1)
