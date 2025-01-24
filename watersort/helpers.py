@@ -160,6 +160,23 @@ class WaterPuzzleSolver:
 
         return list(reversed(steps))
 
+    def winning_node(self) -> HashablePuzzleState:
+        return [n for n in self.nodes if all([len(set(a)) == 1 for a in n])][0]
+
+    def get_all_nodes_from_start_to(self, to: HashablePuzzleState) -> list[HashablePuzzleState]:
+        nodes = []
+        current = to
+        while True:
+            nodes.append(current)
+            if current == self.initial_state.hashable():
+                break
+            distance_at_current = [(k, v) for k, v in self.distance_to_hashables.items() if current in v][0][0]
+            possible_next_nodes = list(self.distance_to_hashables[distance_at_current - 1])
+            next_node = [n for n in possible_next_nodes if (n, current) in self.edges][0]
+            current = next_node
+
+        return nodes
+
     def solve(self) -> None:
         queue = [self.initial_state]
         visited = {self.initial_state.hashable()}

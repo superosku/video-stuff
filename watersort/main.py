@@ -764,7 +764,8 @@ class PathFinding(Scene):
 
 class WaterSortAsGraph(Scene):
     def construct(self):
-        initial_state = WaterPuzzleState.new_random(num_colors=3, random_seed=4)
+        initial_state = WaterPuzzleState.new_random(num_colors=3, random_seed=4)  # TODO: Slow to render but final
+        # initial_state = WaterPuzzleState.new_random(num_colors=2, random_seed=4)  # TODO: For debug, faster to render
         solver = WaterPuzzleSolver(initial_state)
         solver.solve()
 
@@ -778,10 +779,15 @@ class WaterSortAsGraph(Scene):
 
         all_lines = []
 
+        z_index_counter = 0
+
+        path_nodes = solver.get_all_nodes_from_start_to(solver.winning_node())
+
         for i, (distance, hashables) in enumerate(sorted(solver.distance_to_hashables.items())):
             puzzles_to_add = []
             line_edges_to_add = []
             for hashable in hashables:
+                z_index_counter += 1
                 current_nodes.add(hashable)
                 current_edges.update([
                     edge
@@ -794,13 +800,15 @@ class WaterSortAsGraph(Scene):
                 for flask in all_flasks:
                     flask.rotating = True
 
-                flasks = VGroup(all_flasks).set_z_index(20)
+                desired_z_index = z_index_counter * 50 + 100000 if hashable in path_nodes else 0
+
+                flasks = VGroup(all_flasks).set_z_index(desired_z_index + 20)
                 rect = SurroundingRectangle(
                     flasks,
                     buff=1,
                     corner_radius=1,
                     color=GREEN if puzzle.puzzle.is_solved() else WHITE,
-                ).set_z_index(10).set_fill(
+                ).set_z_index(desired_z_index + 10).set_fill(
                     color=GREEN if puzzle.puzzle.is_solved() else BLACK,
                     opacity=1.0
                 )
@@ -843,6 +851,7 @@ class WaterSortAsGraph(Scene):
             positions[first_node] = np.array([0, 0])
 
             y_distance = 0.2
+            y_distance = ([0.5, 0.4, 0.3] + [0.2] * 20)[i]
             for j in range(10):
                 positions = nx.spring_layout(
                     graph,
@@ -905,6 +914,49 @@ class WaterSortAsGraph(Scene):
 
             print("ASDF", distance, len(hashables))
 
+        # Fade out all not in path
+        fade_out_anims = []
+        for hash, puzzle in hash_to_puzzle.items():
+            if hash not in path_nodes:
+                fade_out_anims.append(puzzle.animate.set_stroke(opacity=0.1))
+        for line in all_lines:
+            if line.from_puzzle_hash not in path_nodes or line.to_puzzle_hash not in path_nodes:
+                fade_out_anims.append(line.animate.set_stroke(opacity=0.1))
+        self.play(*fade_out_anims)
+
+        # Zoom in
+        self.play(
+            *[p.animate.scale(1.5) for k, p in hash_to_puzzle.items() if k in path_nodes],
+            run_time=2
+        )
+
+        # Zoom to path and follow it
+        all_vgroup = VGroup(
+            *[p for p in hash_to_puzzle.values()],
+            *all_lines
+        )
+        zoom_in_factor = 2.5
+        all_vgroup.scale(zoom_in_factor)
+        todo_center = hash_to_puzzle[path_nodes[-1]].get_center()
+        all_vgroup.scale(1/zoom_in_factor)
+        self.play(all_vgroup.animate.scale(zoom_in_factor).shift(-todo_center))
+
+        path_to_follow = [
+            -hash_to_puzzle[hash].get_center() - todo_center
+            for hash in reversed(path_nodes)
+        ]
+        thing = Rectangle().set_points_smoothly(
+            path_to_follow
+        ).shift(-(path_to_follow[0] - all_vgroup.get_center()))
+        self.wait(0.5)
+
+        # self.play(FadeIn(thing), run_time=0.5)
+        # self.play(FadeIn(Dot().move_to(all_vgroup.get_center())))
+        # self.wait(0.5)
+
+        self.play(MoveAlongPath(all_vgroup, thing), run_time=6) #, rate_func=linear)
+
+        # Wait
         self.wait(0.1)
 
 
