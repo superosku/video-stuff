@@ -356,7 +356,6 @@ class WaterPuzzleExplained(Scene):
 
 
 class PathFinding(Scene):
-
     def construct(self):
         self.width = 17
         self.height = 10
@@ -385,7 +384,8 @@ class PathFinding(Scene):
         grid = VGroup(*self.rows).arrange()
         grid.arrange(DOWN, buff=0)
 
-        grid.move_to(ORIGIN + LEFT * 1)
+        # grid.move_to(ORIGIN + LEFT * 1)
+        grid.move_to(ORIGIN)
         grid.scale(0.5)
 
         self.add(grid)
@@ -408,6 +408,7 @@ class PathFinding(Scene):
         self.animate_path_finding()
         self.clear_path_finding_text()
 
+        self.wait()
         # return  # TODO: Temporary to speedup animation
 
         # Transformation from grid to graph
@@ -486,15 +487,6 @@ class PathFinding(Scene):
             *[FadeIn(l) for l in connecting_lines]
         )
 
-        # self.remove(*sum([
-        #     [
-        #         square
-        #         for square in row
-        #         if square.fill_color == WHITE
-        #     ]
-        #     for row in rows
-        # ], []))
-
         graph = nx.Graph()
         for edge in edges:
             _from, _to = edge
@@ -571,47 +563,16 @@ class PathFinding(Scene):
         self.wait()
 
     def animate_path_finding(self):
-        node_mobjects = []
         nodes = []
-        self.node_queue = VGroup()
-        self.add(self.node_queue)
         self.all_texts = []
         node_i = 0
 
-        move_queue_top = ORIGIN + RIGHT * 5 + UP * 2.5
-
         def push_nodes_to_queue(node_distances: list[tuple[int, tuple[int, int]]]) -> list[Animation]:
-            # new_texts = []
             for distance, coords in node_distances:
                 nodes.append((distance, coords))
-            #     new_text = Text(f"{distance} ({coords[0], coords[1]})")
-            #     node_mobjects.append(new_text)
-            #     new_text.set_z_index(30).scale(0.5)
-            #     new_text.align_to(self.node_queue)
-            #     self.node_queue.add(new_text)
-            #     new_texts.append(new_text)
-            # self.node_queue.arrange(DOWN, buff=0.1)
-            # self.node_queue.move_to(move_queue_top, aligned_edge=UP)
-            # return [
-            #     FadeIn(new_text)
-            #     for new_text in new_texts
-            # ]
 
         def pop_from_node_queue(node_i) -> tuple[int, int, tuple[int, int]]:
             distance, coords = nodes[node_i]
-            # node_to_be_removed = node_mobjects[node_i]
-
-            # self.node_queue.remove(node_to_be_removed)
-            # node_queue.arrange(DOWN, buff=0.1)
-            # node_queue.move_to(move_queue_top, aligned_edge=UP)
-
-            # self.play(
-            #     FadeOut(node_to_be_removed),
-            #     self.node_queue.animate
-            #     .arrange(DOWN, buff=0.1)
-            #     .move_to(move_queue_top, aligned_edge=UP),
-            #     run_time=0.2
-            # )
 
             return (
                 (node_i + 1, distance, coords)
@@ -665,24 +626,12 @@ class PathFinding(Scene):
             asdf = [(distance + 1, node) for node in nodes_to_push]
             push_nodes_to_queue(asdf)
 
-            # texts_to_push = [
-            #     VGroup(
-            #         t,
-            #         # SurroundingRectangle(t, buff=0.1, corner_radius=0.2).set_z_index(30),
-            #         Circle(radius=0.2).move_to(t.get_center()).set_z_index(30)
-            #     )
-            #     for t in texts_to_push
-            # ]
-
             animations = [
-                # *push_nodes_to_queue([(distance + 1, node) for node in nodes_to_push]),
                 *[FadeIn(text) for text in texts_to_push],
-                FadeOut(text_to_fade_out[1])
+                text_to_fade_out[1].animate.set_stroke(opacity=0)  # Do not fade out but set the opacity to fix a bug
             ]
             self.all_texts.extend(texts_to_push)
             all_anims.append(animations)
-            # if animations:
-            #     self.play(*animations, run_time=0.5)
 
             to_break = False
             for _, node in asdf:
@@ -696,8 +645,11 @@ class PathFinding(Scene):
         all_sub_anims = [AnimationGroup(*anims) for anims in all_anims if anims]
         slow_and_fast_split = 6
 
+        # The slow part at the beginning
         for anim in all_sub_anims[0:slow_and_fast_split]:
             self.play(anim)
+
+        # The fast part
         self.play(AnimationGroup(
             all_sub_anims[slow_and_fast_split:],
             run_time=4,
@@ -723,18 +675,7 @@ class PathFinding(Scene):
                 path.append((cur_x, cur_y))
                 break
 
-        # return  # TODO: Temporary to speedup animation
-
         path_centers = [self.rows[y][x].get_center() for x, y in path]
-        # line_coords = [
-        #     (a, b)
-        #     for a, b in zip(path_centers, path_centers[1:])
-        # ]
-        # lines = [
-        #     Line(a, b, color=PURPLE).set_z_index(1000)
-        #     for a, b in line_coords
-        # ]
-        # self.play(FadeIn(*lines))
         thing = Rectangle().set_points_smoothly(
             path_centers
         ).set_fill(BLUE, opacity=0).set_stroke(PURPLE, opacity=1, width=5).set_z_index(1000000)
@@ -752,13 +693,12 @@ class PathFinding(Scene):
         self.wait()
 
     def clear_path_finding_text(self):
+        self.wait(0.5)
         self.play(
-            FadeOut(self.node_queue),
-            *[FadeOut(text) for text in self.all_texts]
+            FadeOut(text) for text in self.all_texts
         )
-        self.remove(self.node_queue)
-        self.remove(*self.all_texts)
-        self.all_texts = 0
+        self.wait(0.5)
+        self.all_texts = []
         pass
 
 
