@@ -1,4 +1,6 @@
 media
 __pycache__
 watersort/.ipynb_checkpoints/
+watersort/watersort_rust/output.json
+watersort/watersort_rust/target/
 
