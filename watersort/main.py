@@ -704,7 +704,9 @@ class PathFinding(Scene):
 
 class WaterSortAsGraph(Scene):
     def construct(self):
-        initial_state = WaterPuzzleState.new_random(num_colors=3, random_seed=4)  # TODO: Slow to render but final
+        initial_state = WaterPuzzleState.new_random(num_colors=5, random_seed=4)  # TODO: Slow to render but final
+        # initial_state = WaterPuzzleState.new_random(num_colors=4, random_seed=4)  # TODO: Slow to render but final
+        # initial_state = WaterPuzzleState.new_random(num_colors=3, random_seed=4)  # TODO: Slow to render but final
         # initial_state = WaterPuzzleState.new_random(num_colors=2, random_seed=4)  # TODO: For debug, faster to render
         solver = WaterPuzzleSolver(initial_state)
         solver.solve()
@@ -790,7 +792,8 @@ class WaterSortAsGraph(Scene):
             positions = initial_positions
             positions[first_node] = np.array([0, 0])
 
-            y_distance = ([0.75, 0.55, 0.45, 0.3, 0.25] + [0.2] * 20)[i]
+            # y_distance = ([0.75, 0.55, 0.45, 0.3, 0.25] + [0.2] * 5 + [0.1] * 15)[i]
+            y_distance = ([0.75, 0.55, 0.45, 0.3, 0.25] + [0.2 - (i / 20) * 0.1 for i in range(20)])[i]
             for j in range(10):
                 positions = nx.spring_layout(
                     graph,
