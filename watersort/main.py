@@ -370,11 +370,14 @@ class PathFinding(Scene):
                 square = Square(side_length=1)
                 square.set_z_index(10)
                 square.set_fill(BLACK, 1.0)
+                square.is_wall = False
 
                 if y == 7 and 2 < x < 12:
-                    square.set_fill(WHITE, 1.0)
+                    square.is_wall = True
+                    # square.set_fill(WHITE, 1.0)
                 if x == 11 and 1 < y < 7:
-                    square.set_fill(WHITE, 1.0)
+                    square.is_wall = True
+                    # square.set_fill(WHITE, 1.0)
 
                 squares.append(square)
                 squares_by_coords[(x, y)] = square
@@ -388,7 +391,13 @@ class PathFinding(Scene):
         grid.move_to(ORIGIN)
         grid.scale(0.5)
 
-        self.add(grid)
+        self.wait(5)
+        self.play(FadeIn(Text("Path finding").move_to(UP * 3.5).scale(0.9)))
+        self.wait(2)
+        self.play(FadeIn(Text("Breath First Search (BFS)").move_to(UP * 3.0).scale(0.60)))
+        self.wait(5.5)
+        self.play(FadeIn(grid))
+        self.wait(1)
 
         person_square = squares_by_coords[self.start_coords]
         person = Circle(radius=0.2).move_to(person_square.get_center()).set_z_index(20)
@@ -400,15 +409,23 @@ class PathFinding(Scene):
         goal.set_fill(GREEN, 1.0)
         self.goal = goal
 
-        self.add(person)
-        self.add(goal)
+        self.play(FadeIn(goal))
+        self.wait(1.5)
+        self.play(FadeIn(person))
+        self.wait(1)
+        self.play(*[
+            square.animate.set_fill(WHITE)
+            for row in grid
+            for square in row
+            if square.is_wall
+        ])
+        self.wait(3)
 
         # Path finding
         # self.wait()
-        self.animate_path_finding()
+        self.animate_path_finding(slow_start=True)
         self.clear_path_finding_text()
 
-        self.wait()
         # return  # TODO: Temporary to speedup animation
 
         # Transformation from grid to graph
@@ -471,17 +488,19 @@ class PathFinding(Scene):
             for row in self.rows
         ], [])
 
+        self.wait(9)
+
         self.play(
             *hide_walls_animations
         )
 
-        self.wait()
+        self.wait(1.5)
 
         self.play(
             *transform_to_circles_animations,
         )
 
-        self.wait()
+        self.wait(1.5)
 
         self.play(
             *[FadeIn(l) for l in connecting_lines]
@@ -553,16 +572,18 @@ class PathFinding(Scene):
                         anim = Transform(edge2, Line(posa, posb))
                         animations.append(anim)
 
+        self.wait(4)
+
         self.play(*animations)
 
-        self.wait()
+        self.wait(2)
 
         self.animate_path_finding()
         self.clear_path_finding_text()
 
         self.wait()
 
-    def animate_path_finding(self):
+    def animate_path_finding(self, slow_start=False):
         nodes = []
         self.all_texts = []
         node_i = 0
@@ -582,7 +603,7 @@ class PathFinding(Scene):
             center = self.rows[coords[1]][coords[0]].get_center()
             return VGroup(
                 Text(f"{distance}").set_z_index(30).scale(0.5).move_to(center),
-                Circle(radius=0.2).move_to(center).set_z_index(30)
+                Circle(radius=0.2, color=BLUE).move_to(center).set_z_index(30)
             )
 
         all_anims = []
@@ -646,16 +667,27 @@ class PathFinding(Scene):
         slow_and_fast_split = 6
 
         # The slow part at the beginning
-        for anim in all_sub_anims[0:slow_and_fast_split]:
-            self.play(anim)
+        if slow_start:
+            self.wait(4)
+            self.play(all_sub_anims[0])
+            self.wait(14)
+            self.play(all_sub_anims[1])
+            self.wait(8)
+            self.play(all_sub_anims[2])
+            self.wait(1)
+            self.play(all_sub_anims[3])
+            self.wait(1)
+            self.play(all_sub_anims[4])
+            self.wait(1)
+            self.play(all_sub_anims[5])
+            self.wait(1)
 
         # The fast part
         self.play(AnimationGroup(
-            all_sub_anims[slow_and_fast_split:],
-            run_time=4,
+            all_sub_anims[slow_and_fast_split:] if slow_start else all_sub_anims,
+            run_time=8,
             lag_ratio=0.2,
         ))
-        self.wait()
 
         win_distance, (win_x, win_y) = [n for n in nodes if n[1] == self.goal_coords][0]
         cur_dist, cur_x, cur_y = win_distance, win_x, win_y
@@ -675,14 +707,24 @@ class PathFinding(Scene):
                 path.append((cur_x, cur_y))
                 break
 
+        self.wait(4 if slow_start else 1)
+
+        # Animate moving of the player towards the goal
+        path_mobjects = [self.rows[y][x] for x, y in path]
+        self.play(AnimationGroup(
+            *[Indicate(square, color=WHITE) for square in path_mobjects],
+            run_time=8 if slow_start else 2,
+            lag_ratio=0.2,
+            rate_func=rate_functions.ease_in_cubic if slow_start else rate_functions.linear,
+        ))
+
         path_centers = [self.rows[y][x].get_center() for x, y in path]
         thing = Rectangle().set_points_smoothly(
             path_centers
         ).set_fill(BLUE, opacity=0).set_stroke(PURPLE, opacity=1, width=5).set_z_index(1000000)
+        # self.play(Create(thing), run_time=4)
 
-        self.play(Create(thing), run_time=4)
-
-        self.play(MoveAlongPath(self.goal, thing), run_time=4)
+        self.play(MoveAlongPath(self.goal, thing), run_time=4 if slow_start else 2)
 
         self.wait()
 
@@ -853,6 +895,11 @@ class WaterSortAsGraph(Scene):
             self.play(FadeIn(*puzzles_to_add, *lines_to_add))
 
             all_lines += lines_to_add
+
+            if i == 0:
+                self.wait(7)
+            if i == 1:
+                self.wait(4)
 
             print("ASDF", distance, len(hashables))
 
@@ -1280,6 +1327,7 @@ class PlottingNodesAndSolvableNodes(Scene):
 
         self.add(ax)
 
+        # Add dots
         anims = []
         all_dots = []
         for node, solvable in node_solvables:
@@ -1305,6 +1353,7 @@ class PlottingNodesAndSolvableNodes(Scene):
             y_range=(0, 1),
         )
 
+        # Transform dots to bottom (TODO: It is not the best to transform them like this since the whole representation changes)
         anims = []
         for dot in all_dots:
             new_dot = Dot(
@@ -1317,7 +1366,8 @@ class PlottingNodesAndSolvableNodes(Scene):
 
         self.play(*anims)
 
-        bucket_count = 5
+        # Add buckets
+        bucket_count = 10
         buckets = [0 for _ in range(bucket_count)]
         for dot in all_dots:
             bucket = int(dot.my_solvable / dot.my_node * bucket_count)
@@ -1336,7 +1386,7 @@ class PlottingNodesAndSolvableNodes(Scene):
                 i / bucket_count,
                 0,
                 # 0.5 + ratio / 2
-            ) + RIGHT * bar_width / 2
+            ) - RIGHT * (bar_width / 2)
             bar_coords[1] += bar_height / 2
             self.add(
                 Rectangle(
