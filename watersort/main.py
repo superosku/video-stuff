@@ -1,5 +1,5 @@
 import math
-import random
+import json
 
 from manim import *
 import networkx as nx
@@ -704,9 +704,9 @@ class PathFinding(Scene):
 
 class WaterSortAsGraph(Scene):
     def construct(self):
-        initial_state = WaterPuzzleState.new_random(num_colors=5, random_seed=4)  # TODO: Slow to render but final
+        # initial_state = WaterPuzzleState.new_random(num_colors=5, random_seed=4)  # TODO: Slow to render but final
         # initial_state = WaterPuzzleState.new_random(num_colors=4, random_seed=4)  # TODO: Slow to render but final
-        # initial_state = WaterPuzzleState.new_random(num_colors=3, random_seed=4)  # TODO: Slow to render but final
+        initial_state = WaterPuzzleState.new_random(num_colors=3, random_seed=4)  # TODO: Slow to render but final
         # initial_state = WaterPuzzleState.new_random(num_colors=2, random_seed=4)  # TODO: For debug, faster to render
         solver = WaterPuzzleSolver(initial_state)
         solver.solve()
@@ -1006,3 +1006,345 @@ class GettingStuck(Scene):
             old_puzzle = puzzle
             # self.play(puzzle.animate.shift(DOWN * 8))
 
+
+def load_data_by_size():
+    data_by_size = {}
+    with open("watersort/watersort_rust/output.json") as f:
+        for line in f.readlines():
+            if not line:
+                continue
+            data = json.loads(line)
+            data_by_size[data["size"]] = data
+
+    print("data_by_size.keys()", data_by_size.keys())
+
+    return data_by_size
+
+
+class SolvabilityGraph(Scene):
+    def construct(self):
+        data_by_size = load_data_by_size()
+
+        # width = 4
+        # height = 3
+        width = 5
+        height = 10
+
+        all_boths = []
+
+        color_count_to_sample = 16
+
+        colors_to_plot = 35 #40
+        puzzles_to_sample = 50
+
+        solvable_at_color = sum([t["solvable"] for t in data_by_size[color_count_to_sample]["puzzles"][:puzzles_to_sample]])
+
+        for y in range(height):
+            for x in reversed(range(width)):
+                data = data_by_size[color_count_to_sample]["puzzles"][x * height + y]
+                pipes = data["pipes"]
+                puzzle = WaterPuzzle.new_from_hashable_state(pipes)
+                for flask in puzzle.flasks:
+                    flask.rotating = True
+                puzzle.pipedata = data
+                all_flasks = puzzle.all_flasks
+                all_flasks.scale(0.08)
+                for f in all_flasks:
+                    f.bottle.set_stroke(width=1.0)  # Set the bottle stroke
+                    for r in f.rectangles:
+                        r.set_stroke(width=1.0)
+                # all_flasks.set_stroke(width=0.8)
+                surrounding_rect = SurroundingRectangle(all_flasks, buff=0.10, corner_radius=0.05, color=WHITE).set_stroke(width=1.0)
+                both = VGroup(
+                    all_flasks,
+                    surrounding_rect.set_z_index(-1000)
+                )
+                both.puzzle = puzzle
+                all_boths.append(both)
+                # both = all_flasks
+                both.move_to(
+                    ORIGIN +
+                    1.0 * (2.6 * (RIGHT * x + LEFT * (width / 2 - 0.5))) +
+                    1.0 * (0.75 * (UP * y + DOWN * (height / 2 - 0.5)))
+                )
+                # self.add(both)
+
+        self.play(AnimationGroup(
+            *[
+                GrowFromPoint(both, ORIGIN)
+                for both in reversed(all_boths)
+            ],
+            run_time=6,
+            lag_ratio=0.2,
+        ))
+
+        self.wait(0.1)
+
+        color_change_anims = []
+        for both in reversed(all_boths):
+            if both.puzzle.pipedata["solvable"]:
+                color_change_anims.append(AnimationGroup(
+                    Flash(both[0], color=WHITE),
+                    both[1].animate.set_fill(GREEN, opacity=0.4),
+                ))
+            else:
+                color_change_anims.append(AnimationGroup(
+                    Flash(both[0], color=WHITE),
+                    both[1].animate.set_fill(RED, opacity=0.4),
+                ))
+
+        self.play(AnimationGroup(
+            *color_change_anims,
+            run_time=6,
+            lag_ratio=0.2,
+        ))
+
+        self.wait(1.0)
+
+        text = MathTex(
+            r"\frac{" +
+            str(solvable_at_color) +
+            r"}{" +
+            str(puzzles_to_sample) +
+            r"} = " +
+            str(int(100 * solvable_at_color/puzzles_to_sample)) +
+            r"\%"
+        )
+
+        all_boths_vgroup = VGroup(*all_boths)
+
+        self.play(
+            ShrinkToCenter(all_boths_vgroup),
+            GrowFromPoint(text, ORIGIN),
+        )
+        # self.play(Transform(all_boths_vgroup, text))
+        # text = all_boths_vgroup
+
+        self.wait(1)
+
+        ax = Axes(
+            x_range=(4, colors_to_plot),  # 30 colors
+            y_range=(0, 1),  # 50 puzzles
+            tips=False
+        )
+        # labels = ax.get_axis_labels(x_label="Colors", y_label="Solvable puzzles")
+        ax.add_coordinates(
+            range(4, colors_to_plot + 1, 2),
+            [0, 1]
+        )
+
+        self.play(Write(ax))
+
+        self.wait(1)
+
+        dot = Dot(ax.c2p(color_count_to_sample, solvable_at_color / puzzles_to_sample))
+        text.color_count = color_count_to_sample
+        self.play(Transform(text, dot))
+
+        self.wait(1)
+
+        all_dots = [text]
+        anims = []
+        for x in range(4, colors_to_plot):
+            if x == color_count_to_sample:
+                continue
+
+            y = sum([t["solvable"] for t in data_by_size[x]["puzzles"][0:puzzles_to_sample]]) / puzzles_to_sample  # Only 50 first puzzles
+
+            dot = Dot(ax.c2p(x, y))
+            anims.append(FadeIn(dot))
+            dot.color_count = x
+            all_dots.append(dot)
+
+        self.play(
+            AnimationGroup(
+                *anims,
+                run_time=6,
+                lag_ratio=0.2,
+            ),
+        )
+
+        self.wait(1)
+
+        # Add more samples
+        anims = []
+        for x in range(4, colors_to_plot):
+            dot_to_move = next(d for d in all_dots if d.color_count == x)
+            new_y = sum([t["solvable"] for t in data_by_size[x]["puzzles"]]) / len(data_by_size[x]["puzzles"])
+            anims.append(dot_to_move.animate.move_to(ax.c2p(x, new_y)))
+        self.play(*anims)
+
+        self.wait(1)
+
+        self.play(FadeOut(ax, *all_dots))
+
+        self.wait(1)
+
+
+class PlottingNodesAndEdges(Scene):
+    def construct(self):
+        data_by_size = load_data_by_size()
+
+        node_edges = [(i["nodes"], i["edges"]) for i in data_by_size[4]["puzzles"]]
+        node_max, edge_max = np.max(np.array(node_edges), 0)
+
+        ax = Axes(
+            x_range=(0, node_max),  # 30 colors
+            y_range=(0, edge_max),  # 50 puzzles
+            tips=True,
+            axis_config={"include_numbers": False, "include_ticks": False},
+        )
+
+        self.add(ax)
+
+        dot_colors = {
+            4: WHITE,
+            5: RED,
+            6: GREEN,
+            7: BLUE,
+            8: YELLOW,
+        }
+
+        all_dots = []
+
+        anims = []
+        for node, edge in node_edges:
+            dot = Dot(ax.c2p(node, edge)).set_color(dot_colors[4])
+            dot.my_node = node
+            dot.my_edge = edge
+            anims.append(FadeIn(dot))
+            all_dots.append(dot)
+
+        self.play(AnimationGroup(
+            *anims,
+            run_time=3,
+            lag_ratio=0.2,
+        ))
+
+        for colors in range(5, 9):
+            node_edges = [(i["nodes"], i["edges"]) for i in data_by_size[colors]["puzzles"]]
+            node_max, edge_max = np.max(np.array(node_edges), 0)
+            print("ASDF", colors, node_max, edge_max)
+
+            # This ax is not added to the scene but just to get the coordinates
+            ax = Axes(
+                x_range=(0, node_max),  # 30 colors
+                y_range=(0, edge_max),  # 50 puzzles
+                tips=True,
+                axis_config={"include_numbers": False, "include_ticks": False},
+            )
+
+            self.play(
+                ax.animate.set(x_range=(0, node_max), y_range=(0, edge_max)),
+                *[
+                    dot.animate.move_to(ax.c2p(dot.my_node, dot.my_edge))
+                    for dot in all_dots
+                ],
+                run_time=3
+            )
+            self.wait(1)
+
+            anims = []
+            for node, edge in node_edges:
+                dot = Dot(ax.c2p(node, edge)).set_color(dot_colors[colors])
+                dot.my_node = node
+                dot.my_edge = edge
+                all_dots.append(dot)
+                anims.append(FadeIn(dot))
+
+            self.play(AnimationGroup(
+                *anims,
+                run_time=3,
+                lag_ratio=0.2,
+            ))
+            self.wait(1)
+
+
+class PlottingNodesAndSolvableNodes(Scene):
+    def construct(self):
+        data_by_size = load_data_by_size()
+
+        node_solvables = [
+            (i["nodes"], i["winnable_nodes"])
+            for i in data_by_size[14]["puzzles"]
+            if i["solvable"]
+        ]
+        node_max, winnable_nodes_max = np.max(np.array(node_solvables), 0)
+
+        ax = Axes(
+            x_range=(0, node_max),  # 30 colors
+            y_range=(0, winnable_nodes_max),  # 50 puzzles
+            tips=True,
+            axis_config={"include_numbers": False, "include_ticks": False},
+        )
+
+        self.add(ax)
+
+        anims = []
+        all_dots = []
+        for node, solvable in node_solvables:
+            dot = Dot(ax.c2p(node, solvable)) #.set_color(dot_colors[4])
+            dot.my_node = node
+            dot.my_solvable = solvable
+            anims.append(
+                AnimationGroup(
+                    GrowFromCenter(dot),
+                    rate_func=rate_functions.ease_out_elastic,
+                )
+            )
+            all_dots.append(dot)
+
+        self.play(AnimationGroup(
+            *anims,
+            run_time=3,
+            lag_ratio=0.2,
+        ))
+
+        new_ax = Axes(
+            x_range=(0, 1),
+            y_range=(0, 1),
+        )
+
+        anims = []
+        for dot in all_dots:
+            new_dot = Dot(
+                new_ax.c2p(
+                    dot.my_solvable / dot.my_node,
+                    0
+                )
+            )
+            anims.append(Transform(dot, new_dot))
+
+        self.play(*anims)
+
+        bucket_count = 5
+        buckets = [0 for _ in range(bucket_count)]
+        for dot in all_dots:
+            bucket = int(dot.my_solvable / dot.my_node * bucket_count)
+            buckets[bucket] += 1
+
+        max_bucket = max(buckets)
+        for i, bucket in enumerate(buckets):
+            ratio = bucket / max_bucket
+
+            bar_height = ratio * 4
+
+            diff_between_0_and_1 = new_ax.c2p(0, 0)[1] - new_ax.c2p(0, 1)[1]
+            bar_width = 2 * diff_between_0_and_1 / bucket_count
+
+            bar_coords = new_ax.c2p(
+                i / bucket_count,
+                0,
+                # 0.5 + ratio / 2
+            ) + RIGHT * bar_width / 2
+            bar_coords[1] += bar_height / 2
+            self.add(
+                Rectangle(
+                    width=bar_width,
+                    height=bar_height,
+                    fill_opacity=0.5,
+                    fill_color=WHITE,
+                ).move_to(bar_coords)
+            )
+
+        self.wait()
