@@ -8,6 +8,9 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use serde_json::Result;
 
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+
 type HashableState = Vec<[u32; 4]>;
 
 #[derive(Clone, Debug)]
@@ -121,6 +124,7 @@ struct WaterSortSearcher {
     nodes: HashSet<HashableState>,
     edges: HashSet<(HashableState, HashableState)>,
     is_solvable: bool,
+    winnable_nodes: HashSet<HashableState>,
 }
 
 impl WaterSortSearcher {
@@ -131,25 +135,55 @@ impl WaterSortSearcher {
         let mut seen_states = std::collections::HashSet::new();
         seen_states.insert(puzzle.hashable());
 
-        let mut queue = std::collections::VecDeque::new();
-        queue.push_back(puzzle.clone());
-
         let mut nodes = HashSet::new();
         let mut edges = HashSet::new();
+        // solved_state is an optional WaterSortState that is empty/null/none by default
+        let mut solved_state = None;
 
-        while let Some(state) = queue.pop_front() {
-            for mov in state.possible_moves() {
-                nodes.insert(mov.hashable());
-                edges.insert((state.hashable(), mov.hashable()));
-                if seen_states.contains(&mov.hashable()) {
-                    continue;
+        {
+            let mut queue = std::collections::VecDeque::new();
+            queue.push_back(puzzle.clone());
+            nodes.insert(puzzle.hashable());
+
+            while let Some(state) = queue.pop_front() {
+                for mov in state.possible_moves() {
+                    nodes.insert(mov.hashable());
+                    edges.insert((state.hashable(), mov.hashable()));
+                    if seen_states.contains(&mov.hashable()) {
+                        continue;
+                    }
+                    if mov.is_solved() {
+                        is_solvable = true;
+                        solved_state = Some(mov.clone());
+                    }
+                    seen_states.insert(mov.hashable());
+                    queue.push_back(mov);
                 }
-                if mov.is_solved() {
-                    is_solvable = true;
-                    // break
+            }
+        }
+
+        let mut node_to_parents = std::collections::HashMap::new();
+        for (from, to) in &edges {
+            let parents = node_to_parents.entry(to.clone()).or_insert(Vec::new());
+            parents.push(from.clone());
+        }
+
+        let mut winnable_nodes = HashSet::new();
+        {
+            let mut queue = std::collections::VecDeque::new();
+            if let Some(solved_state) = solved_state {
+                queue.push_back(solved_state.hashable());
+            }
+            while let Some(state) = queue.pop_front() {
+                winnable_nodes.insert(state.clone());
+                if let Some(parents) = node_to_parents.get(&state) {
+                    for parent in parents {
+                        if !winnable_nodes.contains(parent) {
+                            winnable_nodes.insert(parent.clone()); // TODO: Should do this here or after popping or both?
+                            queue.push_back(parent.clone());
+                        }
+                    }
                 }
-                seen_states.insert(mov.hashable());
-                queue.push_back(mov);
             }
         }
 
@@ -158,6 +192,7 @@ impl WaterSortSearcher {
             is_solvable,
             nodes,
             edges,
+            winnable_nodes,
         }
     }
 }
@@ -168,6 +203,7 @@ struct JsonLineOutputSingle {
     pipes: Vec<Vec<u32>>,
     solvable: bool,
     nodes: usize,
+    winnable_nodes: usize,
     edges: usize,
 }
 
@@ -178,7 +214,7 @@ struct JsonLineOutput {
 }
 
 fn main() {
-    let sample_size = 100;
+    let sample_size = 500;
 
     // Clear out a file called output.json
     std::fs::write("output.json", "").expect("Unable to write file");
@@ -191,12 +227,13 @@ fn main() {
         let mut puzzles = Vec::new();
 
         // sample_size_real is sample_size if size is 10, otherwise it is 1000
-        let sample_size_real = if size == 10 { 1000 } else { sample_size };
+        // let sample_size_real = if size == 10 { 1000 } else { sample_size };
+        let sample_size_real = sample_size;
 
         for _ in 0..sample_size_real {
             let state = WaterSortSearcher::new_random(size);
 
-            println!("  Nodes: {}, Edges: {}", state.nodes.len(), state.edges.len());
+            println!("  Nodes: {}, Edges: {}, Winnable nodes: {}", state.nodes.len(), state.edges.len(), state.winnable_nodes.len());
 
             if state.is_solvable {
                 solvable_count += 1;
@@ -207,6 +244,7 @@ fn main() {
                 solvable: state.is_solvable,
                 nodes: state.nodes.len(),
                 edges: state.edges.len(),
+                winnable_nodes: state.winnable_nodes.len(),
             };
             puzzles.push(json_line_output_single);
         }
@@ -218,7 +256,16 @@ fn main() {
 
         // Serialize and append to the file
         let serialized = serde_json::to_string(&json_line_output).unwrap();
-        std::fs::write("output.json", serialized + "\n").expect("Unable to write file");
+        // std::fs::write("output.json", serialized + "\n").expect("Unable to write file");
+        // Append to the file (do not overwrite it)
+
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open("output.json")
+            .unwrap();
+
+        writeln!(file, "{}", serialized).unwrap();
 
         println!("  Solvable: {}/{}", solvable_count, sample_size);
     }
