@@ -1,5 +1,6 @@
 import math
 import json
+import random
 
 from manim import *
 import networkx as nx
@@ -1413,27 +1414,42 @@ class DefiningHardness(Scene):
         solver.solve()
 
         first_node_hashable = list(solver.distance_to_hashables[0])[0]
-        grapher = Grapher(first_node_hashable)
+        grapher = Grapher(first_node_hashable, solver.winning_node())
 
         for distance, nodes in solver.distance_to_hashables.items():
             for hashable in nodes:
-                grapher.add_node_to_graph(hashable, distance)
+                grapher.add_node_to_graph(solver, hashable, distance)
 
         for node1, node2 in solver.edges:
             grapher.add_edge_to_graph(node1, node2)
 
         grapher.run_spring_layout_re_balance()
 
-        graph = grapher.construct_mobject_graph(solver)
-        graph.shift(-graph.get_center())
-        # graph.scale(0.1)
-
-        self.play(FadeIn(graph))
+        self.play(FadeIn(*grapher.node_mgroups, *grapher.edge_mgroups))
         self.wait(1)
+        self.play(*grapher.animate_position_change_of_mobjects())
+        self.wait(1)
+        self.play(*grapher.transition_nodes_to_balls())
 
         # self.play(*grapher.transition_nodes_to_balls())
 
-        node_at_1 = [k for k, v in grapher.hashable_to_y_distance.items() if v == 1][0]
+        for node, distance in [
+            ([k for k, v in grapher.hashable_to_y_distance.items() if v == 1][0], 1),
+            ([k for k, v in grapher.hashable_to_y_distance.items() if v == 2][0], 2),
+        ]:
+            new_node = random.randint(0, 1000000)
+            grapher.add_node_to_graph(
+                None,
+                new_node,
+                distance + 1,
+                use_circle=True,
+                start_at=node
+            )
+            grapher.add_edge_to_graph(node, new_node)
 
-        grapher.add_node_to_graph(((1,2,3,4)), 2)
-        grapher.add_edge_to_graph(node_at_1, ((1,2,3,4)))
+        grapher.run_spring_layout_re_balance()
+        self.play(*grapher.animate_position_change_of_mobjects())
+        self.wait(1)
+
+        # grapher.add_node_to_graph(((1,2,3,4)), 2)
+        # grapher.add_edge_to_graph(node_at_1, ((1,2,3,4)))
