@@ -1309,6 +1309,40 @@ class PlottingNodesAndEdges(Scene):
             self.wait(1)
 
 
+def add_histogram(scene: Scene, ax: Axes, items: list[int], bucket_count: int = 10):
+    assert min(items) >= 0
+    assert max(items) <= 1
+
+    buckets = [0 for _ in range(bucket_count)]
+    for dot in items:
+        bucket = int(dot * bucket_count)
+        buckets[bucket] += 1
+
+    max_bucket = max(buckets)
+    for i, bucket in enumerate(buckets):
+        ratio = bucket / max_bucket
+
+        bar_height = ratio * 4
+
+        diff_between_0_and_1 = ax.c2p(0, 0)[1] - ax.c2p(0, 1)[1]
+        bar_width = 2 * diff_between_0_and_1 / bucket_count
+
+        bar_coords = ax.c2p(
+            i / bucket_count,
+            0,
+            # 0.5 + ratio / 2
+        ) - RIGHT * (bar_width / 2)
+        bar_coords[1] += bar_height / 2
+        scene.add(
+            Rectangle(
+                width=bar_width,
+                height=bar_height,
+                fill_opacity=0.5,
+                fill_color=WHITE,
+            ).move_to(bar_coords)
+        )
+
+
 class PlottingNodesAndSolvableNodes(Scene):
     def construct(self):
         data_by_size = load_data_by_size()
@@ -1369,35 +1403,7 @@ class PlottingNodesAndSolvableNodes(Scene):
         self.play(*anims)
 
         # Add buckets
-        bucket_count = 10
-        buckets = [0 for _ in range(bucket_count)]
-        for dot in all_dots:
-            bucket = int(dot.my_solvable / dot.my_node * bucket_count)
-            buckets[bucket] += 1
-
-        max_bucket = max(buckets)
-        for i, bucket in enumerate(buckets):
-            ratio = bucket / max_bucket
-
-            bar_height = ratio * 4
-
-            diff_between_0_and_1 = new_ax.c2p(0, 0)[1] - new_ax.c2p(0, 1)[1]
-            bar_width = 2 * diff_between_0_and_1 / bucket_count
-
-            bar_coords = new_ax.c2p(
-                i / bucket_count,
-                0,
-                # 0.5 + ratio / 2
-            ) - RIGHT * (bar_width / 2)
-            bar_coords[1] += bar_height / 2
-            self.add(
-                Rectangle(
-                    width=bar_width,
-                    height=bar_height,
-                    fill_opacity=0.5,
-                    fill_color=WHITE,
-                ).move_to(bar_coords)
-            )
+        add_histogram(self, new_ax, [dot.my_solvable / dot.my_node for dot in all_dots])
 
         self.wait()
 
