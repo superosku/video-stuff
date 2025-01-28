@@ -4,6 +4,7 @@ import json
 from manim import *
 import networkx as nx
 
+from watersort.grapher import Grapher
 from watersort.helpers import WaterPuzzleState, WaterPuzzleSolver, PourInstruction, HashablePuzzleState
 
 BOTTLE_ROTATION = -PI / 2 + PI / 16
@@ -1081,7 +1082,7 @@ class SolvabilityGraph(Scene):
 
         color_count_to_sample = 16
 
-        colors_to_plot = 35 #40
+        colors_to_plot = 40
         puzzles_to_sample = 50
 
         solvable_at_color = sum([t["solvable"] for t in data_by_size[color_count_to_sample]["puzzles"][:puzzles_to_sample]])
@@ -1192,7 +1193,7 @@ class SolvabilityGraph(Scene):
 
         all_dots = [text]
         anims = []
-        for x in range(4, colors_to_plot):
+        for x in range(4, colors_to_plot + 1):
             if x == color_count_to_sample:
                 continue
 
@@ -1398,3 +1399,41 @@ class PlottingNodesAndSolvableNodes(Scene):
             )
 
         self.wait()
+
+
+class DefiningHardness(Scene):
+    def construct(self):
+        initial_state = WaterPuzzleState.from_hashable_state([
+            (1, 1, 2, 2),
+            (2, 2, 1, 1),
+            (0, 0, 0, 0),
+            (0, 0, 0, 0),
+        ])
+        solver = WaterPuzzleSolver(initial_state)
+        solver.solve()
+
+        first_node_hashable = list(solver.distance_to_hashables[0])[0]
+        grapher = Grapher(first_node_hashable)
+
+        for distance, nodes in solver.distance_to_hashables.items():
+            for hashable in nodes:
+                grapher.add_node_to_graph(hashable, distance)
+
+        for node1, node2 in solver.edges:
+            grapher.add_edge_to_graph(node1, node2)
+
+        grapher.run_spring_layout_re_balance()
+
+        graph = grapher.construct_mobject_graph(solver)
+        graph.shift(-graph.get_center())
+        # graph.scale(0.1)
+
+        self.play(FadeIn(graph))
+        self.wait(1)
+
+        # self.play(*grapher.transition_nodes_to_balls())
+
+        node_at_1 = [k for k, v in grapher.hashable_to_y_distance.items() if v == 1][0]
+
+        grapher.add_node_to_graph(((1,2,3,4)), 2)
+        grapher.add_edge_to_graph(node_at_1, ((1,2,3,4)))
