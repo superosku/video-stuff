@@ -86,7 +86,8 @@ class WaterFlask(VGroup):
 
     def set_colors(self, colors: List[ManimColor]):
         for base, color in zip(self.rectangles, colors):
-            base.set_fill(color, 0.8)
+            base.set_fill(color)
+            base.set_stroke(color)
 
     def set_color_of_water(self, i: int, color: ManimColor):
         self.rectangles[i].set_fill(color, 1.0)
@@ -175,7 +176,7 @@ class WaterPuzzle(VGroup):
             flask = WaterFlask([
                 COLOR_OPTIONS[puzzle.pipes[flask_n][i] - 1]
                 if puzzle.pipes[flask_n][i] != 0
-                else WHITE
+                else BLACK
                 for i in range(4)],
                 fill_amount
             )
@@ -183,18 +184,19 @@ class WaterPuzzle(VGroup):
             self.add(flask.big_clipping_mask)
             self.add(flask)
             flasks.append(flask)
-        #
-        # for flask_n in range(2):
-        #     flask = WaterFlask([WHITE, WHITE, WHITE, WHITE], 0)
-        #     # flask.shift_with_mask(RIGHT * (color_count + flask_n - 1) * 1.5)
-        #     flask.shift_with_mask(RIGHT * (color_count + flask_n) * 1.5 + LEFT * 1.5 * ((color_count + 1) / 2))
-        #     self.add(flask.big_clipping_mask)
-        #     self.add(flask)
-        #     flasks.append(flask)
 
         self.all_flasks = VGroup(*flasks)
         self.all_flasks_and_masks = VGroup(*[f.big_clipping_mask for f in flasks], self.all_flasks)
         self.flasks = flasks
+
+    def set_colors_from_hashable_state(self, hashable_state: HashablePuzzleState):
+        for flask, pipe in zip(self.flasks, hashable_state):
+            flask.set_colors([
+                COLOR_OPTIONS[pipe[i] - 1]
+                if pipe[i] != 0
+                else BLACK # TODO: Black or white? Does it break something if I use black?
+                for i in range(4)
+            ])
 
     def get_pour_move_dir(self, from_: int, to: int) -> np.ndarray:
         return (UP * 2.5 + LEFT * 2.4 + LEFT * (from_ - to) * 1.5) * self.scale_factor
@@ -1309,7 +1311,7 @@ class PlottingNodesAndEdges(Scene):
             self.wait(1)
 
 
-def add_histogram(scene: Scene, ax: Axes, items: list[int], bucket_count: int = 10):
+def add_histogram(ax: Axes, items: list[int], bucket_count: int = 10):
     assert min(items) >= 0
     assert max(items) <= 1
 
@@ -1319,6 +1321,7 @@ def add_histogram(scene: Scene, ax: Axes, items: list[int], bucket_count: int = 
         buckets[bucket] += 1
 
     max_bucket = max(buckets)
+    all_rects = []
     for i, bucket in enumerate(buckets):
         ratio = bucket / max_bucket
 
@@ -1333,14 +1336,15 @@ def add_histogram(scene: Scene, ax: Axes, items: list[int], bucket_count: int = 
             # 0.5 + ratio / 2
         ) - RIGHT * (bar_width / 2)
         bar_coords[1] += bar_height / 2
-        scene.add(
-            Rectangle(
-                width=bar_width,
-                height=bar_height,
-                fill_opacity=0.5,
-                fill_color=WHITE,
-            ).move_to(bar_coords)
-        )
+
+        rect = Rectangle(
+            width=bar_width,
+            height=bar_height,
+            fill_opacity=0.5,
+            fill_color=WHITE,
+        ).move_to(bar_coords)
+        all_rects.append(rect)
+    return VGroup(*all_rects)
 
 
 class PlottingNodesAndSolvableNodes(Scene):
@@ -1403,7 +1407,8 @@ class PlottingNodesAndSolvableNodes(Scene):
         self.play(*anims)
 
         # Add buckets
-        add_histogram(self, new_ax, [dot.my_solvable / dot.my_node for dot in all_dots])
+        hist = add_histogram(self, new_ax, [dot.my_solvable / dot.my_node for dot in all_dots])
+        self.play(FadeIn(hist))
 
         self.wait()
 
@@ -1457,5 +1462,126 @@ class DefiningHardness(Scene):
         self.play(*grapher.animate_position_change_of_mobjects())
         self.wait(1)
 
-        # grapher.add_node_to_graph(((1,2,3,4)), 2)
-        # grapher.add_edge_to_graph(node_at_1, ((1,2,3,4)))
+
+class VisualizingHardness(Scene):
+    def construct(self):
+        data_by_size = load_data_by_size()
+
+        # Axes from x 0 to 1 and y 0 to 1
+        ax = Axes(
+            x_range=(0, 1),
+            y_range=(0, 1),
+            axis_config={"include_numbers": True, "include_ticks": True},
+        )
+        self.play(FadeIn(ax))
+
+        self.wait()
+
+        my_puzzles = sorted(
+            data_by_size[8]["puzzles"][0:50],  # 50 samples
+            key=lambda x: x["nodes"]
+        )
+        number_of_nodes = [p["nodes"] for p in my_puzzles]
+        max_num = max(number_of_nodes)
+        number_of_nodes_scaled = [n / (max_num + 1) for n in number_of_nodes]
+
+        hilighted_dot = None
+        index_of_closest = 0
+
+        def dot_updater(dd):
+            if dd == hilighted_dot and dd.has_been_scaled is False:
+                dd.has_been_scaled = True
+                dd.scale(2)
+            if dd != hilighted_dot and dd.has_been_scaled is True:
+                dd.has_been_scaled = False
+                dd.scale(0.5)
+
+        dots = []
+        for i, n in enumerate(number_of_nodes_scaled):
+            dot = Dot(ax.c2p(
+                random.random(),
+                random.random(),
+            ))
+            dot.has_been_scaled = False
+            dot.add_updater(dot_updater)
+            dots.append(dot)
+        self.play(FadeIn(*dots))
+        self.wait(1)
+
+        anims = []
+        for i, dot in enumerate(dots):
+            num = number_of_nodes_scaled[i]
+            anims.append(
+                dot.animate.move_to(ax.c2p(
+                    num, 0
+                ))
+            )
+        histogram = add_histogram(ax, number_of_nodes_scaled, bucket_count=10)
+
+        self.play(
+            FadeIn(histogram),
+            *anims
+        )
+        self.wait(1)
+
+        dot_pos = ax.c2p(0, 0.5)
+        line_bottom_pos = ax.c2p(0, 0)
+        dot_shower = Dot(dot_pos)
+        dot_line = Line(dot_pos, line_bottom_pos)
+
+        show_offer = VGroup(dot_shower, dot_line)
+
+        self.play(FadeIn(show_offer))
+
+        preview_puzzle = WaterPuzzle.new_from_hashable_state(my_puzzles[0]["pipes"])
+        all_flasks = preview_puzzle.all_flasks
+        for flask in preview_puzzle.flasks:
+            flask.rotating = True
+        all_flasks.scale(0.3)
+        surrounding_rect = (
+            SurroundingRectangle(all_flasks, buff=0.10, corner_radius=0.05, color=WHITE)
+            .set_fill(BLACK, opacity=1)
+            # .set_stroke(width=1.0)
+        )
+        surr_and_flasks = VGroup(all_flasks, surrounding_rect)
+        self.add(surr_and_flasks)
+
+        def flasks_updater(vgroup):
+            nonlocal index_of_closest
+            puzz_to_use = my_puzzles[index_of_closest]
+            pipes = puzz_to_use["pipes"]
+            preview_puzzle.set_colors_from_hashable_state(pipes)
+            surr_and_flasks.move_to(show_offer.get_center() + UP * 3)
+
+
+        surr_and_flasks.add_updater(flasks_updater)
+
+        def updater(ff):
+            # nonlocal hilight_dot
+            # nonlocal un_hilight_dot
+            nonlocal hilighted_dot
+            nonlocal index_of_closest
+
+            pos_in_graph = ax.p2c(show_offer.get_center())
+            x_in_graph = pos_in_graph[0]
+            try:
+                index_of_closest = [i > x_in_graph for i in number_of_nodes_scaled].index(True)
+            except ValueError:
+                # breakpoint()
+                print("THIS HAPPENED")
+                # TODO: What to do (Should be the last index?)
+                index_of_closest = len(number_of_nodes_scaled) - 1
+
+            dot_to_hilight = dots[index_of_closest]
+            hilighted_dot = dot_to_hilight
+
+        show_offer.add_updater(updater)
+
+        x_diff_to_move = (ax.c2p(1, 0) - ax.c2p(0, 0))[0]
+
+        self.play(show_offer.animate.shift(RIGHT * x_diff_to_move), run_time=10, rate_func=linear)
+        self.wait(1)
+        self.play(show_offer.animate.shift(LEFT * x_diff_to_move), run_time=10, rate_func=linear)
+
+        self.wait(4)
+
