@@ -1781,3 +1781,147 @@ class VisualizingHardness(Scene):
         self.wait(1)
         change_dot_axis(3, 4)
         self.wait(1)
+
+
+class MutatingPuzzle(Scene):
+    def construct(self):
+        data_by_size = load_data_by_size("output2.json")
+        my_data = data_by_size[8]["puzzles"]
+
+        current_puzzle = WaterPuzzle.new_random(8)
+        current_puzzle.scale_properly(0.35)
+        current_puzzle.move_to(ORIGIN + LEFT * 3.5)
+
+        self.play(FadeIn(current_puzzle))
+
+        self.wait(1)
+
+        solver = WaterPuzzleSolver(current_puzzle.puzzle)
+        solver.solve()
+
+        ax = Axes(
+            x_range=(0, 1),
+            y_range=(0, 1),
+        )
+        ax.scale(0.5)
+        ax.move_to(ORIGIN + RIGHT * 3.5)
+
+        self.play(FadeIn(ax))
+
+        self.wait(1)
+
+        max_vals = [
+            max([d["nodes"] for d in my_data]),
+            max([d["edges"] for d in my_data]),
+        ]
+        cur_vals = [
+            len(solver.nodes),
+            len(solver.edges),
+        ]
+
+        graph_height = (ax.c2p(0, 1)[1] - ax.c2p(0, 0)[1])
+        graph_width = (ax.c2p(1, 0)[0] - ax.c2p(0, 0)[0])
+
+        def get_graph_rect_data(i, max_val: int, cur_val: int):
+            height = graph_height * (cur_val / max_val)
+            width = graph_width * (1 / len(max_vals)) * 0.5
+            pos = (
+                ax.c2p(0, 0) +
+                RIGHT * graph_width * ((i + 0.5) / (len(max_vals))) +
+                UP * graph_height * (cur_val / max_val) / 2
+            )
+            return height, width, pos
+
+        graph_rects = [
+            Rectangle(
+                height=height,
+                width=width,
+            ).move_to(pos).set_fill(BLUE, 0.5)
+            for height, width, pos in [
+                get_graph_rect_data(i, max_val, cur_val)
+                for i, (max_val, cur_val) in enumerate(zip(max_vals, cur_vals))
+            ]
+        ]
+
+        self.play(FadeIn(*graph_rects))
+
+        changes_to_do = 100
+        changes_done = 0
+        skip_count = 0
+
+        while True:
+            random_flask_1 = random.randrange(0, len(current_puzzle.flasks) - 2)
+            random_flask_2 = random.randrange(0, len(current_puzzle.flasks) - 2)
+            random_pos_1 = random.randrange(0, 4)
+            random_pos_2 = random.randrange(0, 4)
+
+            if random_flask_1 == random_flask_2 and random_pos_1 == random_pos_2:
+                # print("Chose same numbers")
+                continue
+            if current_puzzle.puzzle.pipes[random_flask_1][random_pos_1] == 0:
+                # print("Chosen spot 1 is empty")
+                continue
+            if current_puzzle.puzzle.pipes[random_flask_2][random_pos_2] == 0:
+                # print("Chosen spot 2 is empty")
+                continue
+
+            (
+                current_puzzle.puzzle.pipes[random_flask_1][random_pos_1],
+                current_puzzle.puzzle.pipes[random_flask_2][random_pos_2]
+            ) = (
+                current_puzzle.puzzle.pipes[random_flask_2][random_pos_2],
+                current_puzzle.puzzle.pipes[random_flask_1][random_pos_1]
+            )
+            new_pipes = current_puzzle.puzzle.pipes
+
+            solver = WaterPuzzleSolver(current_puzzle.puzzle)
+            solver.solve()
+
+            print("Guessing", changes_done, skip_count, len(solver.nodes))
+
+            if True:
+            # if changes_done > 20:
+                if len(solver.nodes) <= cur_vals[0]:
+                    # print("Skipping since this did not improve")
+                    skip_count += 1
+                    if skip_count > 500:
+                        break
+                    # Revert the failure
+                    (
+                        current_puzzle.puzzle.pipes[random_flask_1][random_pos_1],
+                        current_puzzle.puzzle.pipes[random_flask_2][random_pos_2]
+                    ) = (
+                        current_puzzle.puzzle.pipes[random_flask_2][random_pos_2],
+                        current_puzzle.puzzle.pipes[random_flask_1][random_pos_1]
+                    )
+                    continue
+
+            current_puzzle.set_colors_from_hashable_state(new_pipes)
+
+            skip_count = 0
+
+            cur_vals = [
+                len(solver.nodes),
+                len(solver.edges),
+            ]
+
+            anims = []
+            for i, (max_val, cur_val) in enumerate(zip(max_vals, cur_vals)):
+                height, width, pos = get_graph_rect_data(i, max_val, cur_val)
+                rect: Rectangle = graph_rects[i]
+                anims.append(
+                    Transform(
+                        rect,
+                        Rectangle(
+                            height=height,
+                            width=width,
+                        ).move_to(pos).set_fill(BLUE, 0.5)
+                    )
+                )
+            self.play(*anims, run_time=0.5)
+
+            changes_done += 1
+            if changes_done >= changes_to_do:
+                break
+
+        pass
