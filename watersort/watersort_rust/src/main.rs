@@ -125,6 +125,7 @@ struct WaterSortSearcher {
     edges: HashSet<(HashableState, HashableState)>,
     is_solvable: bool,
     winnable_nodes: HashSet<HashableState>,
+    moves_to_reach_winnable: i64,
 }
 
 impl WaterSortSearcher {
@@ -140,15 +141,27 @@ impl WaterSortSearcher {
         // solved_state is an optional WaterSortState that is empty/null/none by default
         let mut solved_state = None;
 
+        // A mapping of a node to its distance from the start node
+        let mut node_distances = std::collections::HashMap::new();
+        node_distances.insert(puzzle.hashable(), 0);
+
         {
             let mut queue = std::collections::VecDeque::new();
             queue.push_back(puzzle.clone());
             nodes.insert(puzzle.hashable());
 
             while let Some(state) = queue.pop_front() {
+                let state_hashable = state.hashable();
+                let distance_of_popped = node_distances.get(&state.hashable()).unwrap().clone();
+
                 for mov in state.possible_moves() {
+                    // Add node distance to a dict if not yet there
+                    if !node_distances.contains_key(&mov.hashable()) {
+                        node_distances.insert(mov.hashable(), distance_of_popped + 1);
+                    }
+                    // Add nodes and edges to the sets
                     nodes.insert(mov.hashable());
-                    edges.insert((state.hashable(), mov.hashable()));
+                    edges.insert((state_hashable.clone(), mov.hashable()));
                     if seen_states.contains(&mov.hashable()) {
                         continue;
                     }
@@ -171,7 +184,7 @@ impl WaterSortSearcher {
         let mut winnable_nodes = HashSet::new();
         {
             let mut queue = std::collections::VecDeque::new();
-            if let Some(solved_state) = solved_state {
+            if let Some(solved_state) = solved_state.clone() {
                 queue.push_back(solved_state.hashable());
             }
             while let Some(state) = queue.pop_front() {
@@ -187,12 +200,18 @@ impl WaterSortSearcher {
             }
         }
 
+        let mut moves_to_reach_winnable = match solved_state {
+            Some(solved_state) => *node_distances.get(&solved_state.hashable()).unwrap() as i64,
+            None => -1,
+        };
+
         WaterSortSearcher{
             puzzle,
             is_solvable,
             nodes,
             edges,
             winnable_nodes,
+            moves_to_reach_winnable
         }
     }
 }
@@ -205,6 +224,10 @@ struct JsonLineOutputSingle {
     nodes: usize,
     winnable_nodes: usize,
     edges: usize,
+    distinct_color_parts: usize,
+    random_move_probability_to_winnable: f64,
+    winnable_nodes_vs_nodes: f64,
+    moves_to_reach_winnable: i64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -214,12 +237,16 @@ struct JsonLineOutput {
 }
 
 fn main() {
-    let sample_size = 500;
+    let sample_size = 2000;
+
+    let file_name = "output3.json";
 
     // Clear out a file called output.json
-    std::fs::write("output.json", "").expect("Unable to write file");
+    std::fs::write(file_name, "").expect("Unable to write file");
 
-    for size in 4..50 {
+    let size = 8;
+    {
+    // for size in 4..50 {
         let mut solvable_count = 0;
 
         println!("Size: {}", size);
@@ -233,11 +260,49 @@ fn main() {
         for _ in 0..sample_size_real {
             let state = WaterSortSearcher::new_random(size);
 
-            println!("  Nodes: {}, Edges: {}, Winnable nodes: {}", state.nodes.len(), state.edges.len(), state.winnable_nodes.len());
-
             if state.is_solvable {
                 solvable_count += 1;
             }
+
+            // Count the distinct color parts of each pipe
+            // So for an example:
+            // [1, 1, 2, 2] -> 2
+            // [1, 2, 3, 4] -> 4
+            // [1, 1, 1, 1] -> 1
+            // [0, 0, 0, 0] -> 0  // Empty pipe
+            let mut distinct_color_parts = 0;
+            for tube in &state.puzzle.tubes {
+                let mut distinct_colors = HashSet::new();
+                for color in tube {
+                    if *color != 0 {
+                        distinct_colors.insert(*color);
+                    }
+                }
+                distinct_color_parts += distinct_colors.len();
+            }
+
+            // Calculate the probability of a random move leading to a winnable state
+            let mut all_moves = 0;
+            let mut winnable_moves = 0;
+            // Construct a map from node into all of its childrens
+            let mut node_to_children = std::collections::HashMap::new();
+            for node in &state.nodes {
+                // children is a vector of edges
+                let children: Vec<HashableState> = state.edges.iter().filter(|(from, _)| from == node).map(|(_, to)| to.clone()).collect();
+                node_to_children.insert(node.clone(), children);
+            }
+            // Iterate all of the nodes and the childrens (node_to_children)
+            for (node, children) in &node_to_children {
+                for child in children {
+                    all_moves += 1;
+                    if state.winnable_nodes.contains(child) {
+                        winnable_moves += 1;
+                    }
+                }
+            }
+
+            let random_move_probability_to_winnable: f64  = winnable_moves as f64 / all_moves as f64;
+            let winnable_nodes_vs_nodes = state.winnable_nodes.len() as f64 / state.nodes.len() as f64;
 
             let json_line_output_single = JsonLineOutputSingle{
                 pipes: state.puzzle.tubes.clone().iter().map(|x| x.to_vec()).collect(),
@@ -245,8 +310,18 @@ fn main() {
                 nodes: state.nodes.len(),
                 edges: state.edges.len(),
                 winnable_nodes: state.winnable_nodes.len(),
+                distinct_color_parts,
+                random_move_probability_to_winnable,
+                winnable_nodes_vs_nodes,
+                moves_to_reach_winnable: state.moves_to_reach_winnable,
             };
             puzzles.push(json_line_output_single);
+
+            println!(
+                "  Nodes: {}, Edges: {}, Winnable nodes: {}, Distinct color parts: {}, Random move probability to winnable: {}, Nodes vs winnables: {}, Moves to win: {}",
+                state.nodes.len(), state.edges.len(), state.winnable_nodes.len(), distinct_color_parts,
+                random_move_probability_to_winnable, winnable_nodes_vs_nodes, state.moves_to_reach_winnable
+            );
         }
 
         let json_line_output = JsonLineOutput{
@@ -262,7 +337,7 @@ fn main() {
         let mut file = OpenOptions::new()
             .write(true)
             .append(true)
-            .open("output.json")
+            .open(file_name)
             .unwrap();
 
         writeln!(file, "{}", serialized).unwrap();

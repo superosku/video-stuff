@@ -1058,9 +1058,9 @@ class GettingStuck(Scene):
             # self.play(puzzle.animate.shift(DOWN * 8))
 
 
-def load_data_by_size():
+def load_data_by_size(file_name="output.json"):
     data_by_size = {}
-    with open("watersort/watersort_rust/output.json") as f:
+    with open(f"watersort/watersort_rust/{file_name}") as f:
         for line in f.readlines():
             if not line:
                 continue
@@ -1311,7 +1311,7 @@ class PlottingNodesAndEdges(Scene):
             self.wait(1)
 
 
-def add_histogram(ax: Axes, items: list[int], bucket_count: int = 10):
+def add_histogram(is_x_axis: bool, ax: Axes, items: list[int], bucket_count: int = 10):
     assert min(items) >= 0
     assert max(items) <= 1
 
@@ -1321,25 +1321,35 @@ def add_histogram(ax: Axes, items: list[int], bucket_count: int = 10):
         buckets[bucket] += 1
 
     max_bucket = max(buckets)
+
     all_rects = []
     for i, bucket in enumerate(buckets):
         ratio = bucket / max_bucket
 
-        bar_height = ratio * 4
+        if is_x_axis:
+            diff_between_0_and_1 = ax.c2p(0, 0)[1] - ax.c2p(0, 1)[1]
+        else:
+            diff_between_0_and_1 = ax.c2p(0, 0)[0] - ax.c2p(1, 0)[0]
 
-        diff_between_0_and_1 = ax.c2p(0, 0)[1] - ax.c2p(0, 1)[1]
-        bar_width = 2 * diff_between_0_and_1 / bucket_count
+        bar_height = ratio * 2
+        bar_width = (1.0 if is_x_axis else 0.25) * 2 * diff_between_0_and_1 / bucket_count
 
-        bar_coords = ax.c2p(
-            i / bucket_count,
-            0,
-            # 0.5 + ratio / 2
-        ) - RIGHT * (bar_width / 2)
-        bar_coords[1] += bar_height / 2
+        if is_x_axis:
+            bar_coords = ax.c2p(
+                i / bucket_count,
+                0,
+            ) - RIGHT * (bar_width / 2)
+            bar_coords[1] += bar_height / 2
+        else:
+            bar_coords = ax.c2p(
+                0,
+                i / bucket_count,
+            ) - UP * (bar_width / 2)
+            bar_coords[0] += bar_height / 2
 
         rect = Rectangle(
-            width=bar_width,
-            height=bar_height,
+            width=bar_width if is_x_axis else bar_height,
+            height=bar_height if is_x_axis else bar_width,
             fill_opacity=0.5,
             fill_color=WHITE,
         ).move_to(bar_coords)
@@ -1407,7 +1417,7 @@ class PlottingNodesAndSolvableNodes(Scene):
         self.play(*anims)
 
         # Add buckets
-        hist = add_histogram(self, new_ax, [dot.my_solvable / dot.my_node for dot in all_dots])
+        hist = add_histogram(True, new_ax, [dot.my_solvable / dot.my_node for dot in all_dots], 10)
         self.play(FadeIn(hist))
 
         self.wait()
@@ -1465,7 +1475,9 @@ class DefiningHardness(Scene):
 
 class VisualizingHardness(Scene):
     def construct(self):
-        data_by_size = load_data_by_size()
+        data_by_size = load_data_by_size("output2.json")
+
+        hist_bucket_count = 20
 
         # Axes from x 0 to 1 and y 0 to 1
         ax = Axes(
@@ -1473,17 +1485,75 @@ class VisualizingHardness(Scene):
             y_range=(0, 1),
             axis_config={"include_numbers": True, "include_ticks": True},
         )
-        self.play(FadeIn(ax))
 
-        self.wait()
+        my_puzzles = data_by_size[8]["puzzles"]  # 50 samples
 
-        my_puzzles = sorted(
-            data_by_size[8]["puzzles"][0:50],  # 50 samples
-            key=lambda x: x["nodes"]
+        puzzle_data = [
+            [p["nodes"] for p in my_puzzles],
+            [p["edges"] for p in my_puzzles],
+            [p["winnable_nodes"] for p in my_puzzles],
+            [1 - p["random_move_probability_to_winnable"] for p in my_puzzles],
+            [p["winnable_nodes_vs_nodes"] for p in my_puzzles],
+            [p["moves_to_reach_winnable"] for p in my_puzzles],
+            [p["distinct_color_parts"] for p in my_puzzles],
+        ]
+        puzzle_max_values = [max(p) for p in puzzle_data]
+        puzzle_min_values = [min(p) for p in puzzle_data]
+        puzzle_data_scaled = [
+            [
+                (
+                    (p / (max_val + 1))
+                    - (min_val / (max_val + 1))
+                ) * (max_val / (max_val - min_val))
+                for p in pp
+            ]
+            for pp, max_val, min_val in zip(puzzle_data, puzzle_max_values, puzzle_min_values)
+        ]
+        puzzle_axis_titles = [
+            "Nodes",
+            "Edges",
+            "Winnable nodes",
+            "Random Move Is Failure",
+            "Winnable Nodes / Nodes",
+            "Moves to win",
+            "Distinct color parts",
+        ]
+
+        current_data_x = 0
+        current_data_y = 1
+
+        def new_title_for_x(text) -> Mobject:
+            return (
+                Text(text).scale(0.5)
+                .move_to(ax.c2p(0.5, 0) + DOWN * 0.3)
+            )
+
+        def new_title_for_y(text) -> Mobject:
+            return (
+                Text(text).scale(0.5)
+                .move_to(ax.c2p(0, 0.5) + LEFT * 0.3)
+                .rotate(PI / 2)
+            )
+
+        # Set axis labels
+        ax.add_coordinates(
+            {
+                0: puzzle_min_values[current_data_x],
+                1: puzzle_max_values[current_data_x]
+            },
+            {
+                0: puzzle_min_values[current_data_y],
+                1: puzzle_max_values[current_data_y]
+            },
         )
-        number_of_nodes = [p["nodes"] for p in my_puzzles]
-        max_num = max(number_of_nodes)
-        number_of_nodes_scaled = [n / (max_num + 1) for n in number_of_nodes]
+        # Set axis titles
+        ax_labels = VGroup(
+            new_title_for_x(puzzle_axis_titles[current_data_x]),
+            new_title_for_y(puzzle_axis_titles[current_data_y])
+        )
+
+        self.play(FadeIn(ax, ax_labels))
+        self.wait()
 
         hilighted_dot = None
         index_of_closest = 0
@@ -1497,91 +1567,217 @@ class VisualizingHardness(Scene):
                 dd.scale(0.5)
 
         dots = []
-        for i, n in enumerate(number_of_nodes_scaled):
-            dot = Dot(ax.c2p(
-                random.random(),
-                random.random(),
-            ))
-            dot.has_been_scaled = False
-            dot.add_updater(dot_updater)
-            dots.append(dot)
-        self.play(FadeIn(*dots))
+
+        def add_dots(a, b):
+            new_dots = []
+            for i, (n, e) in enumerate(list(zip(puzzle_data_scaled[current_data_x], puzzle_data_scaled[current_data_y]))[a:b]):
+                dot = Dot(ax.c2p(n, e))
+                dot.has_been_scaled = False
+                dot.add_updater(dot_updater)
+                dot.graph_x_pos = n
+                dot.graph_y_pos = e
+                dot.index_in_data = a + i
+                dots.append(dot)
+                new_dots.append(dot)
+            self.play(FadeIn(*new_dots))
+
+        add_dots(0, 20)
+
         self.wait(1)
 
-        anims = []
-        for i, dot in enumerate(dots):
-            num = number_of_nodes_scaled[i]
-            anims.append(
-                dot.animate.move_to(ax.c2p(
-                    num, 0
-                ))
-            )
-        histogram = add_histogram(ax, number_of_nodes_scaled, bucket_count=10)
+        probe_pos = ax.c2p(0.0, 0.0)
+        preview_center = ax.c2p(0.25, 0.5)
 
-        self.play(
-            FadeIn(histogram),
-            *anims
-        )
-        self.wait(1)
-
-        dot_pos = ax.c2p(0, 0.5)
-        line_bottom_pos = ax.c2p(0, 0)
-        dot_shower = Dot(dot_pos)
-        dot_line = Line(dot_pos, line_bottom_pos)
-
-        show_offer = VGroup(dot_shower, dot_line)
-
-        self.play(FadeIn(show_offer))
+        probe_shower = Dot(probe_pos)
+        probe_line = Line(probe_pos, preview_center).set_z_index(50)
 
         preview_puzzle = WaterPuzzle.new_from_hashable_state(my_puzzles[0]["pipes"])
         all_flasks = preview_puzzle.all_flasks
         for flask in preview_puzzle.flasks:
+            flask.change_z_indexes(150)
             flask.rotating = True
         all_flasks.scale(0.3)
         surrounding_rect = (
             SurroundingRectangle(all_flasks, buff=0.10, corner_radius=0.05, color=WHITE)
             .set_fill(BLACK, opacity=1)
+            .set_z_index(100)
             # .set_stroke(width=1.0)
         )
-        surr_and_flasks = VGroup(all_flasks, surrounding_rect)
-        self.add(surr_and_flasks)
+        surr_and_flasks_and_probe_line = VGroup(all_flasks, surrounding_rect, probe_line)
+
+        show_offer = probe_shower
+        # show_offer = VGroup(probe_shower, probe_line)
+        surr_and_flasks_and_probe_line.shift(UP * 2.2 + LEFT * 3.2)
+        #
+        # self.add(surr_and_flasks)
 
         def flasks_updater(vgroup):
             nonlocal index_of_closest
             puzz_to_use = my_puzzles[index_of_closest]
             pipes = puzz_to_use["pipes"]
             preview_puzzle.set_colors_from_hashable_state(pipes)
-            surr_and_flasks.move_to(show_offer.get_center() + UP * 3)
+            probe_line.set_points_smoothly(
+                [probe_shower.get_center(), surrounding_rect.get_center()]
+            )
+            # probe_line, probe_shower
+            # breakpoint()
+            # surr_and_flasks.move_to(probe_line.get_points()[-1])
+            # surr_and_flasks.move_to(show_offer.get_center() + UP * 3)
 
+        self.play(FadeIn(show_offer))
 
-        surr_and_flasks.add_updater(flasks_updater)
+        flasks_updater(surr_and_flasks_and_probe_line)
+        surr_and_flasks_and_probe_line.add_updater(flasks_updater, call_updater=True)
 
-        def updater(ff):
+        def probe_updater(ff):
             # nonlocal hilight_dot
             # nonlocal un_hilight_dot
             nonlocal hilighted_dot
             nonlocal index_of_closest
 
-            pos_in_graph = ax.p2c(show_offer.get_center())
-            x_in_graph = pos_in_graph[0]
-            try:
-                index_of_closest = [i > x_in_graph for i in number_of_nodes_scaled].index(True)
-            except ValueError:
-                # breakpoint()
-                print("THIS HAPPENED")
-                # TODO: What to do (Should be the last index?)
-                index_of_closest = len(number_of_nodes_scaled) - 1
+            pos_in_graph = ax.p2c(probe_shower.get_center())
+            index_of_closest = sorted([
+                ((d.graph_x_pos - pos_in_graph[0]) ** 2 + (d.graph_y_pos - pos_in_graph[1]) ** 2, i)
+                for i, d in
+                enumerate(dots)]
+            )[0][1]
+            # x_in_graph = pos_in_graph[0]
+            # try:
+            #     index_of_closest = [i > x_in_graph for i in number_of_nodes_scaled].index(True)
+            # except ValueError:
+            #     # breakpoint()
+            #     print("THIS HAPPENED")
+            #     # TODO: What to do (Should be the last index?)
+            #     index_of_closest = len(number_of_nodes_scaled) - 1
 
             dot_to_hilight = dots[index_of_closest]
             hilighted_dot = dot_to_hilight
 
-        show_offer.add_updater(updater)
+        probe_shower.add_updater(probe_updater)
 
-        x_diff_to_move = (ax.c2p(1, 0) - ax.c2p(0, 0))[0]
+        x_diff_whole_graph = (ax.c2p(1, 0) - ax.c2p(0, 0))[0]
+        y_diff_whole_graph = (ax.c2p(0, 1) - ax.c2p(0, 0))[1]
 
-        self.play(show_offer.animate.shift(RIGHT * x_diff_to_move), run_time=10, rate_func=linear)
+        self.play(FadeIn(surr_and_flasks_and_probe_line))
+
+        # move_along_circle = Circle()
+        # self.play(FadeIn(move_along_circle))
+        # self.play(MoveAlongPath(show_offer, move_along_circle))
+
+        self.play(
+            show_offer.animate.shift(RIGHT * x_diff_whole_graph * 1.0 + UP * y_diff_whole_graph * 1.0),
+            run_time=10,
+            rate_func=linear
+        )
+
         self.wait(1)
-        self.play(show_offer.animate.shift(LEFT * x_diff_to_move), run_time=10, rate_func=linear)
 
-        self.wait(4)
+        add_dots(20, -1)
 
+        self.wait(1)
+
+        self.play(
+            show_offer.animate.shift(-RIGHT * x_diff_whole_graph * 1.0 - UP * y_diff_whole_graph * 1.0),
+            run_time=10,
+            rate_func=linear
+        )
+
+        self.wait(1)
+
+        self.play(FadeOut(surr_and_flasks_and_probe_line, probe_shower))
+
+        x_hist = add_histogram(True, ax, puzzle_data_scaled[current_data_x], bucket_count=hist_bucket_count)
+        self.play(FadeIn(x_hist))
+
+        y_hist = add_histogram(False, ax, puzzle_data_scaled[current_data_y], bucket_count=hist_bucket_count)
+        self.play(FadeIn(y_hist))
+
+        self.wait(1)
+
+        def number_as_text(number) -> Mobject:
+            if isinstance(number, float):
+                return MathTex(f"{int(number * 100)}\%").scale(0.8)
+            string_number = str(number)
+            mobject = MathTex(string_number)
+            mobject.scale({
+                1: 1,
+                2: 1,
+                3: 0.9,
+                4: 0.8,
+                5: 0.7,
+                6: 0.6,
+            }.get(len(string_number), 0.6) * 0.8)
+            return mobject
+
+        def change_dot_axis(data_x, data_y):
+            nonlocal current_data_x
+            nonlocal current_data_y
+            current_data_x = data_x
+            current_data_y = data_y
+
+            # Dot locations
+            anims = []
+            for dot in dots:
+                dot_index = dot.index_in_data
+                data_a = puzzle_data_scaled[current_data_x][dot_index]
+                data_b = puzzle_data_scaled[current_data_y][dot_index]
+                anims.append(dot.animate.move_to(
+                    ax.c2p(data_a, data_b)
+                ))
+
+            # Axis titles
+            anims.append(ReplacementTransform(
+                ax_labels[0],
+                new_title_for_x(puzzle_axis_titles[current_data_x])
+            ))
+            anims.append(ReplacementTransform(
+                ax_labels[1],
+                new_title_for_y(puzzle_axis_titles[current_data_y])
+            ))
+
+            # Axis labels
+            # Hight
+            anims.append(ReplacementTransform(
+                ax.coordinate_labels[0][1],
+                number_as_text(puzzle_max_values[current_data_x])
+                .move_to(ax.coordinate_labels[0][1].get_center())
+            ))
+            anims.append(ReplacementTransform(
+                ax.coordinate_labels[1][1],
+                number_as_text(puzzle_max_values[current_data_y])
+                .move_to(ax.coordinate_labels[1][1].get_center())
+            ))
+            # Low
+            anims.append(ReplacementTransform(
+                ax.coordinate_labels[0][0],
+                number_as_text(puzzle_min_values[current_data_x])
+                .move_to(ax.coordinate_labels[0][0].get_center())
+            ))
+            anims.append(ReplacementTransform(
+                ax.coordinate_labels[1][0],
+                number_as_text(puzzle_min_values[current_data_y])
+                .move_to(ax.coordinate_labels[1][0].get_center())
+            ))
+
+            # Histograms
+            x_hist_new = add_histogram(True, ax, puzzle_data_scaled[current_data_x], bucket_count=hist_bucket_count)
+            y_hist_new = add_histogram(False, ax, puzzle_data_scaled[current_data_y], bucket_count=hist_bucket_count)
+            anims.append(Transform(x_hist, x_hist_new))
+            anims.append(Transform(y_hist, y_hist_new))
+
+            self.play(*anims)
+
+        change_dot_axis(0, 2)
+        self.wait(1)
+        change_dot_axis(3, 4)
+        self.wait(1)
+        change_dot_axis(5, 6)
+        self.wait(1)
+        change_dot_axis(0, 5)
+        self.wait(1)
+        change_dot_axis(0, 6)
+        self.wait(1)
+        change_dot_axis(3, 0)
+        self.wait(1)
+        change_dot_axis(3, 4)
+        self.wait(1)
