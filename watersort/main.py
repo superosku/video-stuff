@@ -1788,16 +1788,17 @@ class MutatingPuzzle(Scene):
         data_by_size = load_data_by_size("output2.json")
         my_data = data_by_size[8]["puzzles"]
 
-        current_puzzle = WaterPuzzle.new_random(8)
+        with open("watersort/watersort_rust/output_mutate.json") as f:
+            lines = f.readlines()
+            mutate_data = [json.loads(line) for line in lines]
+
+        current_puzzle = WaterPuzzle.new_from_hashable_state(mutate_data[0]["pipes"])
         current_puzzle.scale_properly(0.35)
         current_puzzle.move_to(ORIGIN + LEFT * 3.5)
 
         self.play(FadeIn(current_puzzle))
 
         self.wait(1)
-
-        solver = WaterPuzzleSolver(current_puzzle.puzzle)
-        solver.solve()
 
         ax = Axes(
             x_range=(0, 1),
@@ -1813,22 +1814,32 @@ class MutatingPuzzle(Scene):
         max_vals = [
             max([d["nodes"] for d in my_data]),
             max([d["edges"] for d in my_data]),
+            max([d["winnable_nodes"] for d in my_data]),
+            max([d["random_move_probability_to_winnable"] for d in my_data]),
+            max([d["winnable_nodes_vs_nodes"] for d in my_data]),
+            max([d["moves_to_reach_winnable"] for d in my_data]),
+            max([d["distinct_color_parts"] for d in my_data]),
         ]
         cur_vals = [
-            len(solver.nodes),
-            len(solver.edges),
+            mutate_data[0]["nodes"],
+            mutate_data[0]["edges"],
+            mutate_data[0]["winnable_nodes"],
+            mutate_data[0]["random_move_probability_to_winnable"],
+            mutate_data[0]["winnable_nodes_vs_nodes"],
+            mutate_data[0]["moves_to_reach_winnable"],
+            mutate_data[0]["distinct_color_parts"],
         ]
 
         graph_height = (ax.c2p(0, 1)[1] - ax.c2p(0, 0)[1])
         graph_width = (ax.c2p(1, 0)[0] - ax.c2p(0, 0)[0])
 
         def get_graph_rect_data(i, max_val: int, cur_val: int):
-            height = graph_height * (cur_val / max_val)
+            height = graph_height * (cur_val / max_val) / 2.0  # Div by 2 or stuff will not fit the screen
             width = graph_width * (1 / len(max_vals)) * 0.5
             pos = (
                 ax.c2p(0, 0) +
                 RIGHT * graph_width * ((i + 0.5) / (len(max_vals))) +
-                UP * graph_height * (cur_val / max_val) / 2
+                UP * height / 2
             )
             return height, width, pos
 
@@ -1845,83 +1856,41 @@ class MutatingPuzzle(Scene):
 
         self.play(FadeIn(*graph_rects))
 
-        changes_to_do = 100
-        changes_done = 0
-        skip_count = 0
+        # changes_to_do = 100
+        # changes_done = 0
+        # skip_count = 0
 
-        while True:
-            random_flask_1 = random.randrange(0, len(current_puzzle.flasks) - 2)
-            random_flask_2 = random.randrange(0, len(current_puzzle.flasks) - 2)
-            random_pos_1 = random.randrange(0, 4)
-            random_pos_2 = random.randrange(0, 4)
-
-            if random_flask_1 == random_flask_2 and random_pos_1 == random_pos_2:
-                # print("Chose same numbers")
-                continue
-            if current_puzzle.puzzle.pipes[random_flask_1][random_pos_1] == 0:
-                # print("Chosen spot 1 is empty")
-                continue
-            if current_puzzle.puzzle.pipes[random_flask_2][random_pos_2] == 0:
-                # print("Chosen spot 2 is empty")
-                continue
-
-            (
-                current_puzzle.puzzle.pipes[random_flask_1][random_pos_1],
-                current_puzzle.puzzle.pipes[random_flask_2][random_pos_2]
-            ) = (
-                current_puzzle.puzzle.pipes[random_flask_2][random_pos_2],
-                current_puzzle.puzzle.pipes[random_flask_1][random_pos_1]
-            )
-            new_pipes = current_puzzle.puzzle.pipes
-
-            solver = WaterPuzzleSolver(current_puzzle.puzzle)
-            solver.solve()
-
-            print("Guessing", changes_done, skip_count, len(solver.nodes))
-
-            if True:
-            # if changes_done > 20:
-                if len(solver.nodes) <= cur_vals[0]:
-                    # print("Skipping since this did not improve")
-                    skip_count += 1
-                    if skip_count > 500:
-                        break
-                    # Revert the failure
-                    (
-                        current_puzzle.puzzle.pipes[random_flask_1][random_pos_1],
-                        current_puzzle.puzzle.pipes[random_flask_2][random_pos_2]
-                    ) = (
-                        current_puzzle.puzzle.pipes[random_flask_2][random_pos_2],
-                        current_puzzle.puzzle.pipes[random_flask_1][random_pos_1]
-                    )
-                    continue
-
-            current_puzzle.set_colors_from_hashable_state(new_pipes)
-
-            skip_count = 0
+        for mut_index, mutated in enumerate(mutate_data):
+            if mutated["is_improvenment"]:
+                current_puzzle.set_colors_from_hashable_state(mutated["pipes"])
 
             cur_vals = [
-                len(solver.nodes),
-                len(solver.edges),
+                mutated["nodes"],
+                mutated["edges"],
+                mutated["winnable_nodes"],
+                mutated["random_move_probability_to_winnable"],
+                mutated["winnable_nodes_vs_nodes"],
+                mutated["moves_to_reach_winnable"],
+                mutated["distinct_color_parts"],
             ]
 
-            anims = []
-            for i, (max_val, cur_val) in enumerate(zip(max_vals, cur_vals)):
-                height, width, pos = get_graph_rect_data(i, max_val, cur_val)
-                rect: Rectangle = graph_rects[i]
-                anims.append(
-                    Transform(
-                        rect,
-                        Rectangle(
-                            height=height,
-                            width=width,
-                        ).move_to(pos).set_fill(BLUE, 0.5)
+            if mutated["is_improvenment"]:
+                anims = []
+                for i, (max_val, cur_val) in enumerate(zip(max_vals, cur_vals)):
+                    height, width, pos = get_graph_rect_data(i, max_val, cur_val)
+                    rect: Rectangle = graph_rects[i]
+                    anims.append(
+                        Transform(
+                            rect,
+                            Rectangle(
+                                height=height,
+                                width=width,
+                            ).move_to(pos).set_fill(BLUE, 0.5)
+                        )
                     )
-                )
-            self.play(*anims, run_time=0.5)
-
-            changes_done += 1
-            if changes_done >= changes_to_do:
-                break
+                self.play(*anims, run_time=0.2)
+            else:
+                pass
+                # self.wait(0.2)
 
         pass
