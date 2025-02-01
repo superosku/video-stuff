@@ -1,5 +1,8 @@
 // Import rand
 extern crate rand;
+
+use rand::Rng;
+
 // Import shuffle
 use rand::seq::SliceRandom;
 // Import hash set
@@ -56,6 +59,27 @@ impl WaterSortState {
 
     pub fn new_mutated(other: &WaterSortState) -> WaterSortState {
         let mut tubes = other.tubes.clone();
+        // Switch two random values from the tubes
+        let mut rng = rand::thread_rng();
+
+        // Do randomly 1 to 3 times
+        let times = rng.gen_range(1..4);
+        for _ in 0..times {
+            let tube_index_1 = rng.gen_range(0..tubes.len() - 2);
+            let tube_color_index_1 = rng.gen_range(0..4);
+            let tube_index_2 = rng.gen_range(0..tubes.len() - 2);
+            let tube_color_index_2 = rng.gen_range(0..4);
+
+            // Throw an error if the color in one of the positions is 0
+            if tubes[tube_index_1][tube_color_index_1] == 0 || tubes[tube_index_2][tube_color_index_2] == 0 {
+                panic!("Cannot mutate a tube with a 0 color");
+            }
+
+            let temp = tubes[tube_index_1][tube_color_index_1];
+            tubes[tube_index_1][tube_color_index_1] = tubes[tube_index_2][tube_color_index_2];
+            tubes[tube_index_2][tube_color_index_2] = temp;
+        }
+
         WaterSortState { tubes }
     }
 
@@ -312,7 +336,6 @@ fn write_data_to_file(sizes: Range<u32>, file_name: &str) {
     let sample_size = 2000;
 
     let file_name = "output3.json";
-
     // Clear out a file called output.json
     std::fs::write(file_name, "").expect("Unable to write file");
 
@@ -399,14 +422,54 @@ struct MutateOutputLine {
     random_move_probability_to_winnable: f64,
     winnable_nodes_vs_nodes: f64,
     moves_to_reach_winnable: i64,
+    is_improvenment: bool,
 }
 
 fn mutate_stuff(color_count: usize, file_name: &str) {
-    let state = WaterSortSearcher::new_random(8);
+    let mut state = WaterSortSearcher::new_random(8);
+    let mut current_nodes = state.nodes.len();
 
-    for i in 0..10 {
+    println!("Start: {} Nodes: {}", 0, state.nodes.len());
 
+    std::fs::write(file_name, "").expect("Unable to write file");
+
+    for i in 0..10000 {
+        let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
+        let mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
+
+        let is_improvenment = mutated_state.nodes.len() > current_nodes;
+
+        let json_line_output = MutateOutputLine {
+            iteration: i,
+            pipes: mutated_state.puzzle.tubes.clone().iter().map(|x| x.to_vec()).collect(),
+            nodes: mutated_state.nodes.len(),
+            edges: mutated_state.edges.len(),
+            winnable_nodes: mutated_state.winnable_nodes.len(),
+            distinct_color_parts: mutated_state.distinct_color_parts,
+            random_move_probability_to_winnable: mutated_state.random_move_probability_to_winnable,
+            winnable_nodes_vs_nodes: mutated_state.winnable_nodes.len() as f64 / mutated_state.nodes.len() as f64,
+            moves_to_reach_winnable: mutated_state.moves_to_reach_winnable,
+            is_improvenment,
+        };
+
+        if is_improvenment {
+            println!("Iteration: {} Nodes: {}", i, mutated_state.nodes.len());
+            state = mutated_state;
+            current_nodes = state.nodes.len();
+        } else {
+            println!("Iteration: {} Nodes: {} (Rejected)", i, mutated_state.nodes.len());
+        }
+
+        let serialized = serde_json::to_string(&json_line_output).unwrap();
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(file_name)
+            .unwrap();
+        writeln!(file, "{}", serialized).unwrap();
     }
+
+    println!("Best Nodes: {}", state.nodes.len());
 }
 
 fn main() {
