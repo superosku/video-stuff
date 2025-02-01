@@ -287,16 +287,17 @@ impl WaterSortSearcher {
             let mut winnable_moves = 0;
             // Construct a map from node into all of its childrens
             let mut node_to_children = std::collections::HashMap::new();
-            for node in &self.nodes {
-                // children is a vector of edges
-                let children: Vec<HashableState> = self.edges.iter().filter(|(from, _)| from == node).map(|(_, to)| to.clone()).collect();
-                node_to_children.insert(node.clone(), children);
+
+            for (from, to) in &self.edges {
+                let children = node_to_children.entry(from.clone()).or_insert(Vec::new());
+                children.push(to.clone());
             }
+
             // Iterate all of the nodes and the childrens (node_to_children)
             for (node, children) in &node_to_children {
                 for child in children {
                     all_moves += 1;
-                    if self.winnable_nodes.contains(child) {
+                    if winnable_nodes.contains(child) {
                         winnable_moves += 1;
                     }
                 }
@@ -427,20 +428,43 @@ struct MutateOutputLine {
 
 fn mutate_stuff(color_count: usize, file_name: &str) {
     let mut state = WaterSortSearcher::new_random(8);
+    state.solve_additional();
     let mut current_nodes = state.nodes.len();
 
     println!("Start: {} Nodes: {}", 0, state.nodes.len());
 
     std::fs::write(file_name, "").expect("Unable to write file");
 
+    let json_line_initial = MutateOutputLine {
+        iteration: 0,
+        pipes: state.puzzle.tubes.clone().iter().map(|x| x.to_vec()).collect(),
+        nodes: state.nodes.len(),
+        edges: state.edges.len(),
+        winnable_nodes: state.winnable_nodes.len(),
+        distinct_color_parts: state.distinct_color_parts,
+        random_move_probability_to_winnable: state.random_move_probability_to_winnable,
+        winnable_nodes_vs_nodes: state.winnable_nodes.len() as f64 / state.nodes.len() as f64,
+        moves_to_reach_winnable: state.moves_to_reach_winnable,
+        is_improvenment: false,
+    };
+
+    let serialized_initial = serde_json::to_string(&json_line_initial).unwrap();
+    let mut file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(file_name)
+        .unwrap();
+    writeln!(file, "{}", serialized_initial).unwrap();
+
     for i in 0..10000 {
         let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
-        let mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
+        let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
+        mutated_state.solve_additional();
 
         let is_improvenment = mutated_state.nodes.len() > current_nodes;
 
         let json_line_output = MutateOutputLine {
-            iteration: i,
+            iteration: i + 1,
             pipes: mutated_state.puzzle.tubes.clone().iter().map(|x| x.to_vec()).collect(),
             nodes: mutated_state.nodes.len(),
             edges: mutated_state.edges.len(),
