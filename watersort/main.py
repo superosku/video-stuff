@@ -1862,7 +1862,7 @@ class MutatingPuzzle(Scene):
         data_by_size = load_data_by_size("output2.json")
         my_data = data_by_size[8]["puzzles"]
 
-        with open("watersort/watersort_rust/output_mutate.json") as f:
+        with open("watersort/watersort_rust/output_mutate2.json") as f:
             lines = f.readlines()
             mutate_data = [json.loads(line) for line in lines]
 
@@ -1871,17 +1871,6 @@ class MutatingPuzzle(Scene):
         current_puzzle.move_to(ORIGIN + LEFT * 3.5)
 
         self.play(FadeIn(current_puzzle))
-
-        self.wait(1)
-
-        ax = Axes(
-            x_range=(0, 1),
-            y_range=(0, 1),
-        )
-        ax.scale(0.5)
-        ax.move_to(ORIGIN + RIGHT * 3.5)
-
-        self.play(FadeIn(ax))
 
         self.wait(1)
 
@@ -1899,6 +1888,13 @@ class MutatingPuzzle(Scene):
             max([1 - d["winnable_nodes_vs_nodes"] for d in my_data]),
             max([d["random_play_wins"] for d in my_data]),
         ]
+        min_vals = [
+            min([d["moves_to_reach_winnable"] for d in my_data]),
+            min([d["nodes"] for d in my_data]),
+            min([d["edges"] for d in my_data]),
+            min([1 - d["winnable_nodes_vs_nodes"] for d in my_data]),
+            min([d["random_play_wins"] for d in my_data]),
+        ]
         cur_vals = [
             mutate_data[0]["moves_to_reach_winnable"],
             mutate_data[0]["nodes"],
@@ -1907,49 +1903,40 @@ class MutatingPuzzle(Scene):
             mutate_data[0]["random_play_wins"],
         ]
 
-        graph_height = (ax.c2p(0, 1)[1] - ax.c2p(0, 0)[1])
-        graph_width = (ax.c2p(1, 0)[0] - ax.c2p(0, 0)[0])
-        bar_width = graph_width * (1 / len(max_vals)) * 0.5
-
-        def get_graph_rect_data(i, max_val: int, cur_val: int):
-            height = graph_height * (cur_val / max_val) / 2.0  # Div by 2 or stuff will not fit the screen
-            width = bar_width
-            pos = (
-                ax.c2p(0, 0) +
-                RIGHT * graph_width * ((i + 0.5) / (len(max_vals))) +
-                UP * height / 2
-            )
-            return height, width, pos
-
-        graph_rects = [
-            Rectangle(
-                height=height,
-                width=width,
-            ).move_to(pos).set_fill(BLUE, 0.5)
-            for height, width, pos in [
-                get_graph_rect_data(i, max_val, cur_val)
-                for i, (max_val, cur_val) in enumerate(zip(max_vals, cur_vals))
-            ]
+        axes = [
+            Axes(
+                x_range=(0, 1),
+                y_range=(0, 1),
+            ).scale(0.25)
+            for _ in range(5)
         ]
 
+        scale_x = 5.0
+        scale_y = 2.2
+
+        axes[0].move_to(ORIGIN + UP * 1.0 * scale_y + RIGHT * 0.3 * scale_x)
+        axes[1].move_to(ORIGIN + UP * 0.0 * scale_y + RIGHT * 0.3 * scale_x)
+        axes[2].move_to(ORIGIN + UP * -1.0 * scale_y + RIGHT * 0.3 * scale_x)
+
+        axes[3].move_to(ORIGIN + UP * 0.5 * scale_y + RIGHT * 1.0 * scale_x)
+        axes[4].move_to(ORIGIN + UP * -0.5 * scale_y + RIGHT * 1.0 * scale_x)
+
+        # self.play(FadeIn(*axes))
         graph_rect_titles = [
             Text(text)
-            .scale(0.5)
-            .rotate(0.7 * PI / 4)
-            .align_to(rect, UP + RIGHT) #.shift(RIGHT * bar_width / 2)
-            .shift(DOWN * rect.height + LEFT * bar_width / 2 + DOWN * 0.1)
-            for text, rect in zip(texts, graph_rects)
+            .scale(0.45)
+            .move_to(ax.get_center() + UP * 0.99)
+            for text, ax in zip(texts, axes)
         ]
 
-        self.play(FadeIn(*graph_rects, *graph_rect_titles))
+        self.play(FadeIn(*axes, *graph_rect_titles))
 
-        # changes_to_do = 100
-        # changes_done = 0
-        # skip_count = 0
-
+        last_dots = []
         for mut_index, mutated in enumerate(mutate_data):
-            if mutated["is_improvenment"]:
-                current_puzzle.set_colors_from_hashable_state(mutated["pipes"])
+            if not mutated["is_improvenment"]:
+                continue
+
+            current_puzzle.set_colors_from_hashable_state(mutated["pipes"])
 
             cur_vals = [
                 mutated["moves_to_reach_winnable"],
@@ -1959,23 +1946,23 @@ class MutatingPuzzle(Scene):
                 mutated["random_play_wins"],
             ]
 
-            if mutated["is_improvenment"]:
-                anims = []
-                for i, (max_val, cur_val) in enumerate(zip(max_vals, cur_vals)):
-                    height, width, pos = get_graph_rect_data(i, max_val, cur_val)
-                    rect: Rectangle = graph_rects[i]
-                    anims.append(
-                        Transform(
-                            rect,
-                            Rectangle(
-                                height=height,
-                                width=width,
-                            ).move_to(pos).set_fill(BLUE, 0.5)
-                        )
-                    )
-                self.play(*anims, run_time=0.2)
-            else:
-                pass
-                # self.wait(0.2)
+            new_dots = []
+            new_lines = []
+            min_factors = [min_vals[0] - 3, min_vals[1], min_vals[2], 0, 0]
+            max_factors = [max_vals[0] + 3, max_vals[1] * 3, max_vals[2] * 3, 0.2, 10000]
+            for (
+                ax, val, max_val, min_val
+            ) in zip(axes, cur_vals, max_factors, min_factors):
+                scaled_x = mut_index / len(mutate_data)
+                scaled_y = (val - min_val) / (max_val - min_val)
+                # (p - min_val) / (max_val - min_val)
+                dot = Dot(ax.c2p(scaled_x, scaled_y), radius=DEFAULT_DOT_RADIUS * 0.5)
+                new_dots.append(dot)
+                if last_dots:
+                    for a, b in zip(last_dots, new_dots):
+                        new_lines.append(Line(a.get_center(), b.get_center(), color=WHITE))
+            last_dots = new_dots
 
-        pass
+            self.play(FadeIn(*new_dots, *new_lines), run_time=0.2)
+
+        self.wait(1)
