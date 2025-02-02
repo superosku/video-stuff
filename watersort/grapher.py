@@ -30,7 +30,8 @@ class Grapher:
         node: HashablePuzzleState,
         y_distance: int,
         use_circle: bool = False,
-        start_at: HashablePuzzleState | None = None
+        start_at: HashablePuzzleState | None = None,
+        outline_color=WHITE,
     ):
         self.current_nodes.add(node)
         self.hashable_to_y_distance[node] = y_distance
@@ -38,7 +39,7 @@ class Grapher:
         # Add the mgroup
         if use_circle:
             circle = (
-                Circle(color=WHITE, radius=0.5)
+                Circle(color=outline_color, radius=0.5)
                 .set_fill(color=BLACK, opacity=1)
                 # .move_to(puzzle.get_center())
                 .set_z_index(10000)
@@ -78,7 +79,7 @@ class Grapher:
         self.node_mgroups.append(both)
         self.hash_to_node_mgroup[node] = both
 
-    def add_edge_to_graph(self, from_node: HashablePuzzleState, to_node: HashablePuzzleState):
+    def add_edge_to_graph(self, from_node: HashablePuzzleState, to_node: HashablePuzzleState, color=WHITE):
         self.current_edges.add((from_node, to_node))
 
         start_pos = (
@@ -97,15 +98,17 @@ class Grapher:
             end_pos,
             # real_pos1,
             # real_pos2,
-            color=WHITE,
+            color=color,
         )
+        new_line.set_stroke(color=color)
+        new_line.set_fill(color=color)
         # new_line.from_puzzle_hash = edge_to_add[0]
         # new_line.to_puzzle_hash = edge_to_add[1]
         new_line.from_node = from_node
         new_line.to_node = to_node
         self.edge_mgroups.append(new_line)
 
-    def run_spring_layout_re_balance(self):
+    def run_spring_layout_re_balance(self, offset_x=0, offset_y=0, seed=0, y_distance=0.3):
         graph = nx.Graph()
         for node in self.current_nodes:
             graph.add_node(node)
@@ -117,7 +120,6 @@ class Grapher:
 
         # y_distance = ([0.75, 0.55, 0.45, 0.3, 0.25] + [0.2] * 5 + [0.1] * 15)[i]
         # y_distance = ([0.75, 0.55, 0.45, 0.3, 0.25] + [0.2 - (i / 20) * 0.1 for i in range(20)])[i]
-        y_distance = 0.3
 
         max_y_distance = max(self.hashable_to_y_distance.values())
 
@@ -125,11 +127,14 @@ class Grapher:
             positions = nx.spring_layout(
                 graph,
                 pos=positions,  # TODO: Set the new ones close to the parents by default, not randomly
+                seed=seed,
                 # fixed=first_node  # First node always at the center
             )
             for hash, position in positions.items():
                 node_distance = self.hashable_to_y_distance[hash]
                 position[1] = -(node_distance - max_y_distance / 2) * y_distance  # + i * y_distance / 2
+                position[0] += offset_x
+                position[1] += offset_y
 
         print("run_spring_layout_re_balance", positions)
         self.current_positions = positions
@@ -156,7 +161,7 @@ class Grapher:
                 Line(
                     three_d_pos_1,
                     three_d_pos_2,
-                    color=WHITE,
+                    color=line.color,
                 )
             ))
             # animations.append(line.animate.put_start_and_end_on(three_d_pos_1, three_d_pos_2))

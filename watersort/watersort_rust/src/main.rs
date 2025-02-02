@@ -163,6 +163,7 @@ struct WaterSortSearcher {
 
     distinct_color_parts: usize,
     random_move_probability_to_winnable: f64,
+    random_play_wins: usize,
 
     solved_state: Option<WaterSortState>,
 }
@@ -237,6 +238,7 @@ impl WaterSortSearcher {
             moves_to_reach_winnable: 0,
             distinct_color_parts: 0,
             random_move_probability_to_winnable: 0.0,
+            random_play_wins: 0,
         }
     }
 
@@ -306,10 +308,33 @@ impl WaterSortSearcher {
             winnable_moves as f64 / all_moves as f64
         };
 
+        // Do a monte carlo simulation. Do random moves and record how many of those lead to a winnable state
+        let mut random_play_wins = 0;
+        if let Some(ssolved) = self.solved_state.clone() {
+            let sssolved = ssolved.hashable();
+            for i in 0..10000 {
+                let mut state = self.puzzle.clone();
+                let mut rng = rand::thread_rng();
+                for _ in 0..100 {
+                    let moves = state.possible_moves();
+                    if moves.len() == 0 {
+                        break;
+                    }
+                    let move_index = rng.gen_range(0..moves.len());
+                    state = moves[move_index].clone();
+                    if state.hashable() == sssolved {
+                        random_play_wins += 1;
+                        break;
+                    }
+                }
+            }
+        }
+
         self.distinct_color_parts = distinct_color_parts;
         self.random_move_probability_to_winnable = random_move_probability_to_winnable;
         self.moves_to_reach_winnable = moves_to_reach_winnable;
         self.winnable_nodes = winnable_nodes;
+        self.random_play_wins = random_play_wins;
     }
 }
 
@@ -325,6 +350,7 @@ struct JsonLineOutputSingle {
     random_move_probability_to_winnable: f64,
     winnable_nodes_vs_nodes: f64,
     moves_to_reach_winnable: i64,
+    random_play_wins: usize,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -333,10 +359,7 @@ struct JsonLineOutput {
     puzzles: Vec<JsonLineOutputSingle>
 }
 
-fn write_data_to_file(sizes: Range<u32>, file_name: &str) {
-    let sample_size = 2000;
-
-    let file_name = "output3.json";
+fn write_data_to_file(sizes: Range<u32>, file_name: &str, sample_size: usize) {
     // Clear out a file called output.json
     std::fs::write(file_name, "").expect("Unable to write file");
 
@@ -379,6 +402,7 @@ fn write_data_to_file(sizes: Range<u32>, file_name: &str) {
                 random_move_probability_to_winnable: state.random_move_probability_to_winnable,
                 winnable_nodes_vs_nodes: state.winnable_nodes.len() as f64 / state.nodes.len() as f64,
                 moves_to_reach_winnable: state.moves_to_reach_winnable,
+                random_play_wins: state.random_play_wins,
             };
             puzzles.push(json_line_output_single);
 
@@ -424,13 +448,12 @@ struct MutateOutputLine {
     winnable_nodes_vs_nodes: f64,
     moves_to_reach_winnable: i64,
     is_improvenment: bool,
+    random_play_wins: usize,
 }
 
 fn mutate_stuff(color_count: usize, file_name: &str) {
     let mut state = WaterSortSearcher::new_random(8);
     state.solve_additional();
-    let mut current_nodes = state.nodes.len();
-
     println!("Start: {} Nodes: {}", 0, state.nodes.len());
 
     std::fs::write(file_name, "").expect("Unable to write file");
@@ -446,6 +469,7 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
         winnable_nodes_vs_nodes: state.winnable_nodes.len() as f64 / state.nodes.len() as f64,
         moves_to_reach_winnable: state.moves_to_reach_winnable,
         is_improvenment: false,
+        random_play_wins: state.random_play_wins,
     };
 
     let serialized_initial = serde_json::to_string(&json_line_initial).unwrap();
@@ -461,7 +485,12 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
         let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
         mutated_state.solve_additional();
 
-        let is_improvenment = mutated_state.nodes.len() > current_nodes;
+        let is_improvenment = mutated_state.nodes.len() > state.nodes.len();
+        // let is_improvenment = (
+        //     (mutated_state.winnable_nodes.len() as f64 / mutated_state.nodes.len() as f64) <
+        //     (state.winnable_nodes.len() as f64 / state.nodes.len() as f64)
+        // );
+        // let is_improvenment = mutated_state.random_play_wins < state.random_play_wins;
 
         let json_line_output = MutateOutputLine {
             iteration: i + 1,
@@ -474,12 +503,12 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
             winnable_nodes_vs_nodes: mutated_state.winnable_nodes.len() as f64 / mutated_state.nodes.len() as f64,
             moves_to_reach_winnable: mutated_state.moves_to_reach_winnable,
             is_improvenment,
+            random_play_wins: state.random_play_wins,
         };
 
         if is_improvenment {
             println!("Iteration: {} Nodes: {}", i, mutated_state.nodes.len());
             state = mutated_state;
-            current_nodes = state.nodes.len();
         } else {
             println!("Iteration: {} Nodes: {} (Rejected)", i, mutated_state.nodes.len());
         }
@@ -497,6 +526,7 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
 }
 
 fn main() {
-    // write_data_to_file(4..10, "output4.json")
-    mutate_stuff(8, "output_mutate.json")
+    // write_data_to_file(4..41, "output.json", 20);  // Solvable vs non solvable puzzles
+    // write_data_to_file(8..9, "output2.json", 100);  // Visualizing on graph with random puzzles
+    mutate_stuff(8, "output_mutate.json");  // Mutation script
 }

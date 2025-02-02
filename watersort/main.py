@@ -1318,6 +1318,8 @@ def add_histogram(is_x_axis: bool, ax: Axes, items: list[int], bucket_count: int
     buckets = [0 for _ in range(bucket_count)]
     for dot in items:
         bucket = int(dot * bucket_count)
+        if bucket == len(buckets):
+            bucket -= 1
         buckets[bucket] += 1
 
     max_bucket = max(buckets)
@@ -1425,6 +1427,10 @@ class PlottingNodesAndSolvableNodes(Scene):
 
 class DefiningHardness(Scene):
     def construct(self):
+        title = Text("Defining difficulty")
+        title.move_to(ORIGIN + UP * 3)
+        self.add(title)
+
         initial_state = WaterPuzzleState.from_hashable_state([
             (1, 1, 2, 2),
             (2, 2, 1, 1),
@@ -1444,7 +1450,7 @@ class DefiningHardness(Scene):
         for node1, node2 in solver.edges:
             grapher.add_edge_to_graph(node1, node2)
 
-        grapher.run_spring_layout_re_balance()
+        grapher.run_spring_layout_re_balance(offset_x=-0.4, offset_y=-0.2, seed=2, y_distance=0.25)
 
         self.play(FadeIn(*grapher.node_mgroups, *grapher.edge_mgroups))
         self.wait(1)
@@ -1454,22 +1460,91 @@ class DefiningHardness(Scene):
 
         # self.play(*grapher.transition_nodes_to_balls())
 
+        invalids_hashables = []
         for node, distance in [
             ([k for k, v in grapher.hashable_to_y_distance.items() if v == 1][0], 1),
-            ([k for k, v in grapher.hashable_to_y_distance.items() if v == 2][0], 2),
+            ([k for k, v in grapher.hashable_to_y_distance.items() if v == 2][1], 2),
         ]:
             new_node = random.randint(0, 1000000)
+            invalids_hashables.append(new_node)
             grapher.add_node_to_graph(
                 None,
                 new_node,
                 distance + 1,
                 use_circle=True,
-                start_at=node
+                start_at=node,
+                outline_color=RED,
             )
-            grapher.add_edge_to_graph(node, new_node)
+            grapher.add_edge_to_graph(node, new_node, color=RED)
 
-        grapher.run_spring_layout_re_balance()
+        grapher.run_spring_layout_re_balance(offset_x=-0.4, offset_y=-0.2, y_distance=0.25, seed=2)
+
+        # Make the newly added a tiny bit tighter
+        stuff = sorted([(k, v) for k, v in grapher.current_positions.items()], key=lambda x: x[1][0])
+        print(
+            "WTF",
+            grapher.current_positions[stuff[0][0]][0],
+            grapher.current_positions[stuff[-1][0]][0],
+        )
+        grapher.current_positions[stuff[0][0]] = grapher.current_positions[stuff[0][0]] + np.array([0.3, 0])
+        grapher.current_positions[stuff[-1][0]] = grapher.current_positions[stuff[-1][0]] - np.array([0.3, 0])
+
         self.play(*grapher.animate_position_change_of_mobjects())
+        self.wait(1)
+
+        is_wins = []
+        hilight_node_in_win_animations = []
+        for i in range(20):
+            cur_node = grapher.first_node
+            hilightables = []
+            while True:
+                hilightables.append(cur_node)
+                node_options = [e[1] for e in grapher.current_edges if e[0] == cur_node]
+                if len(node_options) == 0 or cur_node == grapher.goal_node:
+                    break
+                random_node = random.choice(node_options)
+                cur_node = random_node
+            is_win = cur_node == grapher.goal_node
+            is_wins.append(is_win)
+            hilight_node_in_win_animations.append(
+                AnimationGroup(
+                    *[Indicate(grapher.hash_to_node_mgroup[hashable]) for hashable in hilightables],
+                    lag_ratio=0.1
+                )
+            )
+
+        texts = [
+            Text("1. Length of shortest path (4)"),
+            Text("2. Number of nodes (9)"),
+            Text("3. Number of edges (11)"),
+            Text("4. Ratio of dead end nodes (2 / 9) = 78%"),
+            Text(f"5. Random play win probability\n   ({sum(is_wins)} / {len(is_wins)}) = {int(100 * sum(is_wins) / len(is_wins))}%)"),
+        ]
+        hilight_animss = [
+            [AnimationGroup(
+                Indicate(grapher.node_mgroups[0]),
+                Indicate(grapher.node_mgroups[1]),
+                Indicate(grapher.node_mgroups[5]),
+                Indicate(grapher.node_mgroups[6]),
+            )],
+            [AnimationGroup(*[Indicate(node) for node in grapher.node_mgroups])],
+            [AnimationGroup(*[Indicate(edge) for edge in grapher.edge_mgroups])],
+            [
+                AnimationGroup(*[
+                    Indicate(grapher.hash_to_node_mgroup[hashable])
+                    for hashable in invalids_hashables
+                ]),
+                AnimationGroup(*[Indicate(node) for node in grapher.node_mgroups]),
+            ],
+            hilight_node_in_win_animations,
+        ]
+        for i, (text, anims) in enumerate(zip(texts, hilight_animss)):
+            text.scale(0.5)
+            text.move_to(ORIGIN + UP * 1.8 + i * DOWN * 0.5 + RIGHT * 1.1, aligned_edge=LEFT + UP)
+            self.play(FadeIn(text))
+            for anim in anims:
+                self.play(anim)
+
         self.wait(1)
 
 
@@ -1477,7 +1552,7 @@ class VisualizingHardness(Scene):
     def construct(self):
         data_by_size = load_data_by_size("output2.json")
 
-        hist_bucket_count = 20
+        hist_bucket_count = 10
 
         # Axes from x 0 to 1 and y 0 to 1
         ax = Axes(
@@ -1489,38 +1564,36 @@ class VisualizingHardness(Scene):
         my_puzzles = data_by_size[8]["puzzles"]  # 50 samples
 
         puzzle_data = [
+            [p["moves_to_reach_winnable"] for p in my_puzzles],
             [p["nodes"] for p in my_puzzles],
             [p["edges"] for p in my_puzzles],
-            [p["winnable_nodes"] for p in my_puzzles],
-            [1 - p["random_move_probability_to_winnable"] for p in my_puzzles],
-            [p["winnable_nodes_vs_nodes"] for p in my_puzzles],
-            [p["moves_to_reach_winnable"] for p in my_puzzles],
-            [p["distinct_color_parts"] for p in my_puzzles],
+            [1 - p["winnable_nodes_vs_nodes"] for p in my_puzzles],
+            [p["random_play_wins"] for p in my_puzzles],
         ]
         puzzle_max_values = [max(p) for p in puzzle_data]
         puzzle_min_values = [min(p) for p in puzzle_data]
         puzzle_data_scaled = [
             [
-                (
-                    (p / (max_val + 1))
-                    - (min_val / (max_val + 1))
-                ) * (max_val / (max_val - min_val))
+                (p - min_val) / (max_val - min_val)
+                # (
+                #     (p / (max_val + 1))
+                #     - (min_val / (max_val + 1))
+                # ) * (max_val / (max_val - min_val))
                 for p in pp
             ]
             for pp, max_val, min_val in zip(puzzle_data, puzzle_max_values, puzzle_min_values)
         ]
         puzzle_axis_titles = [
-            "Nodes",
-            "Edges",
-            "Winnable nodes",
-            "Random Move Is Failure",
-            "Winnable Nodes / Nodes",
-            "Moves to win",
-            "Distinct color parts",
+            "Length of shortest path",
+            "Number of nodes",
+            "Number of edges",
+            "Ratio of dead end nodes",
+            "Random play win probability",
         ]
+        # breakpoint()
 
-        current_data_x = 0
-        current_data_y = 1
+        current_data_x = 1
+        current_data_y = 2
 
         def new_title_for_x(text) -> Mobject:
             return (
@@ -1585,7 +1658,16 @@ class VisualizingHardness(Scene):
 
         self.wait(1)
 
-        probe_pos = ax.c2p(0.0, 0.0)
+        x_diff = (ax.c2p(1, 0) - ax.c2p(0, 0))[0]
+        y_diff = (ax.c2p(0, 1) - ax.c2p(0, 0))[1]
+        angle_to_rotate = math.atan(y_diff / x_diff)
+        show_offer_oval = Circle()
+        show_offer_oval.set_points([[p[0], p[1] / 6, p[2]] for p in show_offer_oval.get_points()])
+        show_offer_oval.scale(6)
+        show_offer_oval.rotate(angle_to_rotate)
+
+        # probe_pos = ax.c2p(0.0, 0.0)
+        probe_pos = show_offer_oval.get_points()[0]
         preview_center = ax.c2p(0.25, 0.5)
 
         probe_shower = Dot(probe_pos)
@@ -1660,12 +1742,9 @@ class VisualizingHardness(Scene):
 
         self.play(FadeIn(surr_and_flasks_and_probe_line))
 
-        # move_along_circle = Circle()
-        # self.play(FadeIn(move_along_circle))
-        # self.play(MoveAlongPath(show_offer, move_along_circle))
-
         self.play(
-            show_offer.animate.shift(RIGHT * x_diff_whole_graph * 1.0 + UP * y_diff_whole_graph * 1.0),
+            MoveAlongPath(show_offer, show_offer_oval),
+            # show_offer.animate.shift(RIGHT * x_diff_whole_graph * 1.0 + UP * y_diff_whole_graph * 1.0),
             run_time=10,
             rate_func=linear
         )
@@ -1677,7 +1756,8 @@ class VisualizingHardness(Scene):
         self.wait(1)
 
         self.play(
-            show_offer.animate.shift(-RIGHT * x_diff_whole_graph * 1.0 - UP * y_diff_whole_graph * 1.0),
+            MoveAlongPath(show_offer, show_offer_oval),
+            # show_offer.animate.shift(-RIGHT * x_diff_whole_graph * 1.0 - UP * y_diff_whole_graph * 1.0),
             run_time=10,
             rate_func=linear
         )
@@ -1767,19 +1847,13 @@ class VisualizingHardness(Scene):
 
             self.play(*anims)
 
-        change_dot_axis(0, 2)
+        change_dot_axis(1, 0)
         self.wait(1)
-        change_dot_axis(3, 4)
+        change_dot_axis(1, 2)
         self.wait(1)
-        change_dot_axis(5, 6)
+        change_dot_axis(1, 3)
         self.wait(1)
-        change_dot_axis(0, 5)
-        self.wait(1)
-        change_dot_axis(0, 6)
-        self.wait(1)
-        change_dot_axis(3, 0)
-        self.wait(1)
-        change_dot_axis(3, 4)
+        change_dot_axis(1, 4)
         self.wait(1)
 
 
@@ -1811,31 +1885,35 @@ class MutatingPuzzle(Scene):
 
         self.wait(1)
 
+        texts = [
+            "Length of shortest path",
+            "Number of nodes",
+            "Number of edges",
+            "Ratio of dead end nodes",
+            "Random play win probability",
+        ]
         max_vals = [
+            max([d["moves_to_reach_winnable"] for d in my_data]),
             max([d["nodes"] for d in my_data]),
             max([d["edges"] for d in my_data]),
-            max([d["winnable_nodes"] for d in my_data]),
-            max([d["random_move_probability_to_winnable"] for d in my_data]),
-            max([d["winnable_nodes_vs_nodes"] for d in my_data]),
-            max([d["moves_to_reach_winnable"] for d in my_data]),
-            max([d["distinct_color_parts"] for d in my_data]),
+            max([1 - d["winnable_nodes_vs_nodes"] for d in my_data]),
+            max([d["random_play_wins"] for d in my_data]),
         ]
         cur_vals = [
+            mutate_data[0]["moves_to_reach_winnable"],
             mutate_data[0]["nodes"],
             mutate_data[0]["edges"],
-            mutate_data[0]["winnable_nodes"],
-            mutate_data[0]["random_move_probability_to_winnable"],
-            mutate_data[0]["winnable_nodes_vs_nodes"],
-            mutate_data[0]["moves_to_reach_winnable"],
-            mutate_data[0]["distinct_color_parts"],
+            1 - mutate_data[0]["winnable_nodes_vs_nodes"],
+            mutate_data[0]["random_play_wins"],
         ]
 
         graph_height = (ax.c2p(0, 1)[1] - ax.c2p(0, 0)[1])
         graph_width = (ax.c2p(1, 0)[0] - ax.c2p(0, 0)[0])
+        bar_width = graph_width * (1 / len(max_vals)) * 0.5
 
         def get_graph_rect_data(i, max_val: int, cur_val: int):
             height = graph_height * (cur_val / max_val) / 2.0  # Div by 2 or stuff will not fit the screen
-            width = graph_width * (1 / len(max_vals)) * 0.5
+            width = bar_width
             pos = (
                 ax.c2p(0, 0) +
                 RIGHT * graph_width * ((i + 0.5) / (len(max_vals))) +
@@ -1854,7 +1932,16 @@ class MutatingPuzzle(Scene):
             ]
         ]
 
-        self.play(FadeIn(*graph_rects))
+        graph_rect_titles = [
+            Text(text)
+            .scale(0.5)
+            .rotate(0.7 * PI / 4)
+            .align_to(rect, UP + RIGHT) #.shift(RIGHT * bar_width / 2)
+            .shift(DOWN * rect.height + LEFT * bar_width / 2 + DOWN * 0.1)
+            for text, rect in zip(texts, graph_rects)
+        ]
+
+        self.play(FadeIn(*graph_rects, *graph_rect_titles))
 
         # changes_to_do = 100
         # changes_done = 0
@@ -1865,13 +1952,11 @@ class MutatingPuzzle(Scene):
                 current_puzzle.set_colors_from_hashable_state(mutated["pipes"])
 
             cur_vals = [
+                mutated["moves_to_reach_winnable"],
                 mutated["nodes"],
                 mutated["edges"],
-                mutated["winnable_nodes"],
-                mutated["random_move_probability_to_winnable"],
-                mutated["winnable_nodes_vs_nodes"],
-                mutated["moves_to_reach_winnable"],
-                mutated["distinct_color_parts"],
+                1 - mutated["winnable_nodes_vs_nodes"],
+                mutated["random_play_wins"],
             ]
 
             if mutated["is_improvenment"]:
