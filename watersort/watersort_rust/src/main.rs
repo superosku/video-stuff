@@ -16,7 +16,8 @@ use std::ops::Range;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 
-type HashableState = Vec<[u32; 4]>;
+// type HashableState = Vec<[u32; 4]>;
+type HashableState = usize;
 
 #[derive(Clone, Debug)]
 struct WaterSortState {
@@ -89,7 +90,15 @@ impl WaterSortState {
     pub fn hashable(&self) -> HashableState {
         let mut sorted_tubes = self.tubes.clone();
         sorted_tubes.sort();
-        sorted_tubes
+        // Construct usize hash from Vec<[u32; 4]>,
+        // This is a bit hacky but it should work
+        let mut hash: usize = 0;
+        for tube in &sorted_tubes {
+            for color in tube {
+                hash = hash.wrapping_mul(31).wrapping_add(*color as usize);
+            }
+        }
+        hash
     }
 
     pub fn is_solved(&self) -> bool {
@@ -199,21 +208,22 @@ impl WaterSortSearcher {
                 let distance_of_popped = node_distances.get(&state.hashable()).unwrap().clone();
 
                 for mov in state.possible_moves() {
+                    let mov_hashable = mov.hashable();
                     // Add node distance to a dict if not yet there
-                    if !node_distances.contains_key(&mov.hashable()) {
-                        node_distances.insert(mov.hashable(), distance_of_popped + 1);
+                    if !node_distances.contains_key(&mov_hashable) {
+                        node_distances.insert(mov_hashable, distance_of_popped + 1);
                     }
                     // Add nodes and edges to the sets
-                    nodes.insert(mov.hashable());
-                    edges.insert((state_hashable.clone(), mov.hashable()));
-                    if seen_states.contains(&mov.hashable()) {
+                    nodes.insert(mov_hashable);
+                    edges.insert((state_hashable.clone(), mov_hashable));
+                    if seen_states.contains(&mov_hashable) {
                         continue;
                     }
                     if mov.is_solved() {
                         is_solvable = true;
                         solved_state = Some(mov.clone());
                     }
-                    seen_states.insert(mov.hashable());
+                    seen_states.insert(mov_hashable);
                     queue.push_back(mov);
                 }
             }
@@ -224,7 +234,6 @@ impl WaterSortSearcher {
             let parents = node_to_parents.entry(to.clone()).or_insert(Vec::new());
             parents.push(from.clone());
         }
-
 
         WaterSortSearcher{
             puzzle,
@@ -312,10 +321,11 @@ impl WaterSortSearcher {
         let mut random_play_wins = 0;
         if let Some(ssolved) = self.solved_state.clone() {
             let sssolved = ssolved.hashable();
-            for i in 0..10000 {
+            // let ssstart = self.puzzle.hashable();
+            for i in 0..5000 {
                 let mut state = self.puzzle.clone();
                 let mut rng = rand::thread_rng();
-                for _ in 0..100 {
+                for _ in 0..50 {
                     let moves = state.possible_moves();
                     if moves.len() == 0 {
                         break;
@@ -484,7 +494,9 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
         .unwrap();
     writeln!(file, "{}", serialized_initial).unwrap();
 
-    for i in 0..10000 {
+    let it_per_thing = 2000;
+
+    for i in 0..it_per_thing {
         let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
         let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
         mutated_state.solve_additional();
@@ -509,12 +521,12 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
         writeln!(file, "{}", serialized).unwrap();
     }
 
-    for i in 10000..20000 {
+    for i in it_per_thing..(it_per_thing * 2) {
         let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
         let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
         mutated_state.solve_additional();
 
-        let is_improvenment = mutated_state.random_play_wins > state.random_play_wins;
+        let is_improvenment = mutated_state.random_play_wins < state.random_play_wins && mutated_state.random_play_wins > 0;
 
         let json_line_output = get_mutate_output_line(&mutated_state, is_improvenment, i + 1);
 
@@ -534,12 +546,12 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
         writeln!(file, "{}", serialized).unwrap();
     }
 
-    for i in 20000..30000 {
+    for i in (it_per_thing * 2)..(it_per_thing * 3) {
         let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
         let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
         mutated_state.solve_additional();
 
-        let is_improvenment = mutated_state.random_play_wins < state.random_play_wins;
+        let is_improvenment = mutated_state.random_play_wins > state.random_play_wins && mutated_state.random_play_wins > 0;
 
         let json_line_output = get_mutate_output_line(&mutated_state, is_improvenment, i + 1);
 
@@ -565,5 +577,5 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
 fn main() {
     // write_data_to_file(4..41, "output.json", 20);  // Solvable vs non solvable puzzles
     // write_data_to_file(8..9, "output2.json", 100);  // Visualizing on graph with random puzzles
-    mutate_stuff(8, "output_mutate.json");  // Mutation script
+    mutate_stuff(8, "output_mutate2.json");  // Mutation script
 }
