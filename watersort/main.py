@@ -1862,7 +1862,7 @@ class MutatingPuzzle(Scene):
         data_by_size = load_data_by_size("output2.json")
         my_data = data_by_size[8]["puzzles"]
 
-        with open("watersort/watersort_rust/output_mutate2.json") as f:
+        with open("watersort/watersort_rust/output_mutate.json") as f:
             lines = f.readlines()
             mutate_data = [json.loads(line) for line in lines]
 

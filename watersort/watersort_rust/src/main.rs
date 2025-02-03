@@ -451,15 +451,9 @@ struct MutateOutputLine {
     random_play_wins: usize,
 }
 
-fn mutate_stuff(color_count: usize, file_name: &str) {
-    let mut state = WaterSortSearcher::new_random(8);
-    state.solve_additional();
-    println!("Start: {} Nodes: {}", 0, state.nodes.len());
-
-    std::fs::write(file_name, "").expect("Unable to write file");
-
-    let json_line_initial = MutateOutputLine {
-        iteration: 0,
+fn get_mutate_output_line(state: &WaterSortSearcher, is_improvenment: bool, iteration: usize) -> MutateOutputLine {
+    MutateOutputLine {
+        iteration,
         pipes: state.puzzle.tubes.clone().iter().map(|x| x.to_vec()).collect(),
         nodes: state.nodes.len(),
         edges: state.edges.len(),
@@ -468,9 +462,19 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
         random_move_probability_to_winnable: state.random_move_probability_to_winnable,
         winnable_nodes_vs_nodes: state.winnable_nodes.len() as f64 / state.nodes.len() as f64,
         moves_to_reach_winnable: state.moves_to_reach_winnable,
-        is_improvenment: false,
+        is_improvenment: is_improvenment,
         random_play_wins: state.random_play_wins,
-    };
+    }
+}
+
+fn mutate_stuff(color_count: usize, file_name: &str) {
+    let mut state = WaterSortSearcher::new_random(8);
+    state.solve_additional();
+    println!("Start: {} Nodes: {}", 0, state.nodes.len());
+
+    std::fs::write(file_name, "").expect("Unable to write file");
+
+    let json_line_initial = get_mutate_output_line(&state, false, 0);
 
     let serialized_initial = serde_json::to_string(&json_line_initial).unwrap();
     let mut file = OpenOptions::new()
@@ -486,25 +490,58 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
         mutated_state.solve_additional();
 
         let is_improvenment = mutated_state.nodes.len() > state.nodes.len();
-        // let is_improvenment = (
-        //     (mutated_state.winnable_nodes.len() as f64 / mutated_state.nodes.len() as f64) <
-        //     (state.winnable_nodes.len() as f64 / state.nodes.len() as f64)
-        // );
-        // let is_improvenment = mutated_state.random_play_wins < state.random_play_wins;
 
-        let json_line_output = MutateOutputLine {
-            iteration: i + 1,
-            pipes: mutated_state.puzzle.tubes.clone().iter().map(|x| x.to_vec()).collect(),
-            nodes: mutated_state.nodes.len(),
-            edges: mutated_state.edges.len(),
-            winnable_nodes: mutated_state.winnable_nodes.len(),
-            distinct_color_parts: mutated_state.distinct_color_parts,
-            random_move_probability_to_winnable: mutated_state.random_move_probability_to_winnable,
-            winnable_nodes_vs_nodes: mutated_state.winnable_nodes.len() as f64 / mutated_state.nodes.len() as f64,
-            moves_to_reach_winnable: mutated_state.moves_to_reach_winnable,
-            is_improvenment,
-            random_play_wins: state.random_play_wins,
-        };
+        let json_line_output = get_mutate_output_line(&mutated_state, is_improvenment, i + 1);
+
+        if is_improvenment {
+            println!("Iteration: {} Nodes: {}", i, mutated_state.nodes.len());
+            state = mutated_state;
+        } else {
+            println!("Iteration: {} Nodes: {} (Rejected)", i, mutated_state.nodes.len());
+        }
+
+        let serialized = serde_json::to_string(&json_line_output).unwrap();
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(file_name)
+            .unwrap();
+        writeln!(file, "{}", serialized).unwrap();
+    }
+
+    for i in 10000..20000 {
+        let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
+        let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
+        mutated_state.solve_additional();
+
+        let is_improvenment = mutated_state.random_play_wins > state.random_play_wins;
+
+        let json_line_output = get_mutate_output_line(&mutated_state, is_improvenment, i + 1);
+
+        if is_improvenment {
+            println!("Iteration: {} Nodes: {}", i, mutated_state.nodes.len());
+            state = mutated_state;
+        } else {
+            println!("Iteration: {} Nodes: {} (Rejected)", i, mutated_state.nodes.len());
+        }
+
+        let serialized = serde_json::to_string(&json_line_output).unwrap();
+        let mut file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(file_name)
+            .unwrap();
+        writeln!(file, "{}", serialized).unwrap();
+    }
+
+    for i in 20000..30000 {
+        let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
+        let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
+        mutated_state.solve_additional();
+
+        let is_improvenment = mutated_state.random_play_wins < state.random_play_wins;
+
+        let json_line_output = get_mutate_output_line(&mutated_state, is_improvenment, i + 1);
 
         if is_improvenment {
             println!("Iteration: {} Nodes: {}", i, mutated_state.nodes.len());
