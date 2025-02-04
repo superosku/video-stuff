@@ -1085,7 +1085,7 @@ class SolvabilityGraph(Scene):
 
         color_count_to_sample = 16
 
-        colors_to_plot = 40
+        colors_to_plot = 35
         puzzles_to_sample = 50
 
         solvable_at_color = sum([t["solvable"] for t in data_by_size[color_count_to_sample]["puzzles"][:puzzles_to_sample]])
@@ -1550,7 +1550,7 @@ class DefiningHardness(Scene):
 
 class VisualizingHardness(Scene):
     def construct(self):
-        data_by_size = load_data_by_size("output2.json")
+        data_by_size = load_data_by_size("output_8_5000.json")
 
         hist_bucket_count = 10
 
@@ -1859,10 +1859,10 @@ class VisualizingHardness(Scene):
 
 class MutatingPuzzle(Scene):
     def construct(self):
-        data_by_size = load_data_by_size("output2.json")
+        data_by_size = load_data_by_size("output_8_5000.json")
         my_data = data_by_size[8]["puzzles"]
 
-        with open("watersort/watersort_rust/output_mutate.json") as f:
+        with open("watersort/watersort_rust/output_mutate2.json") as f:
             lines = f.readlines()
             mutate_data = [json.loads(line) for line in lines]
 
@@ -1894,13 +1894,6 @@ class MutatingPuzzle(Scene):
             min([d["edges"] for d in my_data]),
             min([1 - d["winnable_nodes_vs_nodes"] for d in my_data]),
             min([d["random_play_wins"] for d in my_data]),
-        ]
-        cur_vals = [
-            mutate_data[0]["moves_to_reach_winnable"],
-            mutate_data[0]["nodes"],
-            mutate_data[0]["edges"],
-            1 - mutate_data[0]["winnable_nodes_vs_nodes"],
-            mutate_data[0]["random_play_wins"],
         ]
 
         axes = [
@@ -1948,8 +1941,8 @@ class MutatingPuzzle(Scene):
 
             new_dots = []
             new_lines = []
-            min_factors = [min_vals[0] - 3, min_vals[1], min_vals[2], 0, 0]
-            max_factors = [max_vals[0] + 3, max_vals[1] * 3, max_vals[2] * 3, 0.2, 10000]
+            min_factors = [min_vals[0] - 10, min_vals[1], min_vals[2], 0, 0]
+            max_factors = [max_vals[0] + 3, max_vals[1] * 3, max_vals[2] * 3, 1.0, 5000]
             for (
                 ax, val, max_val, min_val
             ) in zip(axes, cur_vals, max_factors, min_factors):
@@ -1965,4 +1958,21 @@ class MutatingPuzzle(Scene):
 
             self.play(FadeIn(*new_dots, *new_lines), run_time=0.2)
 
+        self.wait(1)
+
+
+class TitleScreen(Scene):
+    def construct(self):
+        title1 = Text("Lets code:")
+        title2 = Text("Water Sort Puzzle solver")
+        title1.scale(2.0)
+        title2.scale(1.5)
+
+        # Create a gvgroup and arrange the text in it
+        title = VGroup(title1, title2)
+        title.arrange(DOWN)
+
+        # Fade in the vgroup
+        self.wait(1)
+        self.play(FadeIn(title))
         self.wait(1)

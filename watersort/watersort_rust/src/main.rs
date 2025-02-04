@@ -292,12 +292,17 @@ impl WaterSortSearcher {
             }
         }
 
+        let mut node_to_children = std::collections::HashMap::new();
         let random_move_probability_to_winnable: f64 = {
             // Calculate the probability of a random move leading to a winnable state
             let mut all_moves = 0;
             let mut winnable_moves = 0;
             // Construct a map from node into all of its childrens
-            let mut node_to_children = std::collections::HashMap::new();
+
+            for node in &self.nodes {
+                // Add empty vector to mapping
+                node_to_children.entry(node.clone()).or_insert(Vec::new());
+            }
 
             for (from, to) in &self.edges {
                 let children = node_to_children.entry(from.clone()).or_insert(Vec::new());
@@ -321,18 +326,18 @@ impl WaterSortSearcher {
         let mut random_play_wins = 0;
         if let Some(ssolved) = self.solved_state.clone() {
             let sssolved = ssolved.hashable();
-            // let ssstart = self.puzzle.hashable();
+            let ssstart = self.puzzle.hashable();
             for i in 0..5000 {
-                let mut state = self.puzzle.clone();
+                let mut state = ssstart;
                 let mut rng = rand::thread_rng();
                 for _ in 0..50 {
-                    let moves = state.possible_moves();
+                    let moves = &node_to_children[&state];
                     if moves.len() == 0 {
                         break;
                     }
                     let move_index = rng.gen_range(0..moves.len());
-                    state = moves[move_index].clone();
-                    if state.hashable() == sssolved {
+                    state = moves[move_index]; //.clone();
+                    if state == sssolved {
                         random_play_wins += 1;
                         break;
                     }
@@ -387,7 +392,8 @@ fn write_data_to_file(sizes: Range<u32>, file_name: &str, sample_size: usize) {
         // let sample_size_real = if size == 10 { 1000 } else { sample_size };
         let sample_size_real = sample_size;
 
-        for _ in 0..sample_size_real {
+        for i in 0..sample_size_real {
+            println!("Sample: {}/{}", i, sample_size_real);
             let mut state = WaterSortSearcher::new_random(size);
             state.solve_additional();
 
@@ -416,12 +422,12 @@ fn write_data_to_file(sizes: Range<u32>, file_name: &str, sample_size: usize) {
             };
             puzzles.push(json_line_output_single);
 
-            println!(
-                "HMM"
-                // "  Nodes: {}, Edges: {}, Winnable nodes: {}, Distinct color parts: {}, Random move probability to winnable: {}, Nodes vs winnables: {}, Moves to win: {}",
-                // state.nodes.len(), state.edges.len(), state.winnable_nodes.len(), distinct_color_parts,
-                // random_move_probability_to_winnable, winnable_nodes_vs_nodes, state.moves_to_reach_winnable
-            );
+            // println!(
+            //     "HMM"
+            //     // "  Nodes: {}, Edges: {}, Winnable nodes: {}, Distinct color parts: {}, Random move probability to winnable: {}, Nodes vs winnables: {}, Moves to win: {}",
+            //     // state.nodes.len(), state.edges.len(), state.winnable_nodes.len(), distinct_color_parts,
+            //     // random_move_probability_to_winnable, winnable_nodes_vs_nodes, state.moves_to_reach_winnable
+            // );
         }
 
         let json_line_output = JsonLineOutput{
@@ -576,6 +582,6 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
 
 fn main() {
     // write_data_to_file(4..41, "output.json", 20);  // Solvable vs non solvable puzzles
-    // write_data_to_file(8..9, "output2.json", 100);  // Visualizing on graph with random puzzles
-    mutate_stuff(8, "output_mutate2.json");  // Mutation script
+    write_data_to_file(8..9, "output_8_5000.json", 5000);  // Visualizing on graph with random puzzles
+    // mutate_stuff(8, "output_mutate2.json");  // Mutation script
 }
