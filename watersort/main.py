@@ -278,19 +278,19 @@ class WaterPuzzle(VGroup):
         )
 
 
-class WaterPuzzleSolved(Scene):
+class S01WaterPuzzleSolved(Scene):
     def construct(self):
-        puzzle = WaterPuzzle.new_random(color_count=8, playback_speed=0.2 * (25 / 15), random_seed=444)
+        puzzle = WaterPuzzle.new_random(color_count=8, playback_speed=0.2 * (25 / 15) * 0.9, random_seed=444)
         puzzle.scale_properly(0.8)
 
-        self.add(puzzle)
-
-        self.wait(0.5)
+        self.play(FadeIn(puzzle))
+        self.wait(22)
 
         puzzle.solver.solve()
         puzzle.animate_pours(self, puzzle.solver.solve_instructions)
 
-        self.wait(0.5)
+        self.play(FadeOut(puzzle))
+        self.wait(1)
 
 
 def animate_cross_fade_in_out(scene: Scene):
@@ -305,9 +305,8 @@ def animate_cross_fade_in_out(scene: Scene):
     scene.play(FadeOut(cross_thing))
 
 
-class WaterPuzzleExplained(Scene):
+class S02WaterPuzzleExplained(Scene):
     def construct(self):
-        puzzle = WaterPuzzle.new_random(color_count=4, playback_speed=1.0, random_seed=1)
         puzzle = WaterPuzzle.new_from_hashable_state(
             (
                 (1, 1, 4, 1),
@@ -320,7 +319,7 @@ class WaterPuzzleExplained(Scene):
             playback_speed=1.0,
         )
         puzzle.scale_properly(1.0)
-        self.add(puzzle)
+        self.play(FadeIn(puzzle))
 
         self.wait(2)
 
@@ -359,7 +358,7 @@ class WaterPuzzleExplained(Scene):
         self.wait(1)
 
 
-class PathFinding(Scene):
+class S05PathFinding(Scene):
     def construct(self):
         self.width = 17
         self.height = 10
@@ -395,26 +394,30 @@ class PathFinding(Scene):
         grid.move_to(ORIGIN)
         grid.scale(0.5)
 
-        self.wait(5)
-        self.play(FadeIn(Text("Path finding").move_to(UP * 3.5).scale(0.9)))
-        self.wait(2)
+        title = Text("Solver").scale(1.5)
+        self.play(FadeIn(title))
+        self.wait(18)
+        self.play(
+            FadeOut(title),
+            FadeIn(Text("Path finding").move_to(UP * 3.5).scale(0.9))
+        )
         self.play(FadeIn(Text("Breath First Search (BFS)").move_to(UP * 3.0).scale(0.60)))
-        self.wait(5.5)
+        self.wait(2)
         self.play(FadeIn(grid))
         self.wait(1)
 
         person_square = squares_by_coords[self.start_coords]
         person = Circle(radius=0.2).move_to(person_square.get_center()).set_z_index(20)
-        person.set_fill(RED, 1.0)
+        person.set_fill(GREEN, 1.0)
         self.person = person
 
         goal_square = squares_by_coords[self.goal_coords]
         goal = Triangle().move_to(goal_square.get_center()).set_z_index(20).scale(0.2)
-        goal.set_fill(GREEN, 1.0)
+        goal.set_fill(BLUE, 1.0)
         self.goal = goal
 
         self.play(FadeIn(goal))
-        self.wait(1.5)
+        self.wait(1.0)
         self.play(FadeIn(person))
         self.wait(1)
         self.play(*[
@@ -423,12 +426,14 @@ class PathFinding(Scene):
             for square in row
             if square.is_wall
         ])
-        self.wait(3)
+        self.wait(20)
 
         # Path finding
         # self.wait()
         self.animate_path_finding(slow_start=True)
         self.clear_path_finding_text()
+
+        # return
 
         # return  # TODO: Temporary to speedup animation
 
@@ -607,7 +612,7 @@ class PathFinding(Scene):
             center = self.rows[coords[1]][coords[0]].get_center()
             return VGroup(
                 Text(f"{distance}").set_z_index(30).scale(0.5).move_to(center),
-                Circle(radius=0.2, color=BLUE).move_to(center).set_z_index(30)
+                Circle(radius=0.2, color=RED).move_to(center).set_z_index(30)
             )
 
         all_anims = []
@@ -668,23 +673,23 @@ class PathFinding(Scene):
                 break
 
         all_sub_anims = [AnimationGroup(*anims) for anims in all_anims if anims]
-        slow_and_fast_split = 6
+        slow_and_fast_split = 4
 
         # The slow part at the beginning
         if slow_start:
-            self.wait(4)
+            self.wait(9)
             self.play(all_sub_anims[0])
-            self.wait(14)
+            self.wait(7)
             self.play(all_sub_anims[1])
-            self.wait(8)
+            self.wait(16)
             self.play(all_sub_anims[2])
             self.wait(1)
             self.play(all_sub_anims[3])
-            self.wait(1)
-            self.play(all_sub_anims[4])
-            self.wait(1)
-            self.play(all_sub_anims[5])
-            self.wait(1)
+            # self.wait(1)
+            # self.play(all_sub_anims[4])
+            # self.wait(1)
+            # self.play(all_sub_anims[5])
+            # self.wait(1)
 
         # The fast part
         self.play(AnimationGroup(
@@ -748,8 +753,13 @@ class PathFinding(Scene):
         pass
 
 
-class WaterSortAsGraph(Scene):
+class S06WaterSortAsGraph(Scene):
     def construct(self):
+        title = Text("Water Sort Puzzle as a Graph").scale(1.5)
+        self.play(FadeIn(title))
+        self.wait(10)
+        self.play(FadeOut(title))
+
         # initial_state = WaterPuzzleState.new_random(num_colors=5, random_seed=4)  # TODO: Slow to render but final
         # initial_state = WaterPuzzleState.new_random(num_colors=4, random_seed=4)  # TODO: Slow to render but final
         initial_state = WaterPuzzleState.new_random(num_colors=3, random_seed=4)  # TODO: Slow to render but final
@@ -903,9 +913,11 @@ class WaterSortAsGraph(Scene):
             if i == 0:
                 self.wait(7)
             if i == 1:
-                self.wait(4)
+                self.wait(4 + 25 + 3)
 
             print("ASDF", distance, len(hashables))
+
+        self.wait(8)
 
         # Fade out all not in path
         fade_out_anims = []
@@ -955,12 +967,12 @@ class WaterSortAsGraph(Scene):
         self.wait(0.1)
 
 
-class HarderAndHarder(Scene):
+class S03HarderAndHarder(Scene):
     def construct(self):
         puzzle1 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=2, random_seed=4))
         puzzle2 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=4, random_seed=4))
         puzzle3 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=8, random_seed=4))
-        puzzle4 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=16, random_seed=4))
+        puzzle4 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=12, random_seed=4))
         puzzle5 = WaterPuzzle(WaterPuzzleState.new_random(num_colors=len(COLOR_OPTIONS), random_seed=4))
 
         puzzles = [
@@ -969,14 +981,13 @@ class HarderAndHarder(Scene):
         puzzle_scales = [
             1.0, 0.9, 0.8, 0.5, 0.25
         ]
-
         puzzle_centers = [
 
         ]
 
         for puzzle, scale in zip(puzzles, puzzle_scales):
             for flask in puzzle.all_flasks:
-                flask.rotating = False
+                flask.rotating = True
             puzzle.scale(scale)
             # puzzle_centers.append(ORIGIN)
             puzzle_centers.append(
@@ -985,36 +996,30 @@ class HarderAndHarder(Scene):
 
         off_screen = 8
         run_time = 1
-        wait_time = 1
 
         for puzzle, center in zip(puzzles, puzzle_centers):
             puzzle.move_to(center + DOWN * off_screen)
 
         self.play(puzzle1.animate.move_to(puzzle_centers[0]), run_time=run_time)
 
-        self.wait(wait_time)
+        self.wait(4)
 
-        for i, ((p1, c1), (p2, c2)) in enumerate(zip(
+        for i, ((p1, c1), (p2, c2), wait_time) in enumerate(zip(
             zip(puzzles[1:], puzzle_centers[1:]),
             zip(puzzles[:-1], puzzle_centers[:-1]),
+            [0, 0, 0, 3]
         )):
-            for flask in p1.all_flasks:
-                flask.rotating = False
-            for flask in p2.all_flasks:
-                flask.rotating = False
             self.play(p1.animate.move_to(c1), p2.animate.move_to(c2 + UP * off_screen), run_time=run_time)
             # Last round wait more
-            if i < len(puzzles) - 2:
+            if wait_time > 0:
                 self.wait(wait_time)
-            else:
-                self.wait(3)
 
         self.play(puzzles[-1].animate.move_to(puzzle_centers[-1] + UP * off_screen), run_time=run_time)
 
         self.wait()
 
 
-class GettingStuck(Scene):
+class S04GettingStuck(Scene):
     def construct(self):
         puzz = WaterPuzzleState.new_random(num_colors=8, random_seed=123)
         puzzle = WaterPuzzle(puzz)
@@ -1072,8 +1077,14 @@ def load_data_by_size(file_name="output.json"):
     return data_by_size
 
 
-class SolvabilityGraph(Scene):
+class S07SolvabilityGraph(Scene):
     def construct(self):
+        title = Text("Generating puzzles").scale(1.5)
+        subtitle = Text("Solvability").scale(0.8).shift(DOWN * 1.0)
+        self.play(FadeIn(title, subtitle))
+        self.wait(9)
+        self.play(FadeOut(title, subtitle))
+
         data_by_size = load_data_by_size()
 
         # width = 4
@@ -1125,7 +1136,7 @@ class SolvabilityGraph(Scene):
                 GrowFromPoint(both, ORIGIN)
                 for both in reversed(all_boths)
             ],
-            run_time=6,
+            run_time=5,
             lag_ratio=0.2,
         ))
 
@@ -1146,7 +1157,7 @@ class SolvabilityGraph(Scene):
 
         self.play(AnimationGroup(
             *color_change_anims,
-            run_time=6,
+            run_time=5,
             lag_ratio=0.2,
         ))
 
@@ -1181,7 +1192,7 @@ class SolvabilityGraph(Scene):
         # labels = ax.get_axis_labels(x_label="Colors", y_label="Solvable puzzles")
         ax.add_coordinates(
             range(4, colors_to_plot + 1, 2),
-            [0, 1]
+            {0: "0\%", 1: "100\%"}
         )
 
         self.play(Write(ax))
@@ -1225,7 +1236,7 @@ class SolvabilityGraph(Scene):
             anims.append(dot_to_move.animate.move_to(ax.c2p(x, new_y)))
         self.play(*anims)
 
-        self.wait(1)
+        self.wait(41 + 5)
 
         self.play(FadeOut(ax, *all_dots))
 
@@ -1280,11 +1291,13 @@ def add_histogram(is_x_axis: bool, ax: Axes, items: list[int], bucket_count: int
     return VGroup(*all_rects)
 
 
-class DefiningHardness(Scene):
+class S08DefiningHardness(Scene):
     def construct(self):
         title = Text("Defining difficulty")
         title.move_to(ORIGIN + UP * 3)
-        self.add(title)
+        self.play(FadeIn(title))
+
+        self.wait(7)
 
         initial_state = WaterPuzzleState.from_hashable_state([
             (1, 1, 2, 2),
@@ -1310,7 +1323,7 @@ class DefiningHardness(Scene):
         self.play(FadeIn(*grapher.node_mgroups, *grapher.edge_mgroups))
         self.wait(1)
         self.play(*grapher.animate_position_change_of_mobjects())
-        self.wait(1)
+        self.wait(2)
         self.play(*grapher.transition_nodes_to_balls())
 
         # self.play(*grapher.transition_nodes_to_balls())
@@ -1343,9 +1356,10 @@ class DefiningHardness(Scene):
         )
         grapher.current_positions[stuff[0][0]] = grapher.current_positions[stuff[0][0]] + np.array([0.3, 0])
         grapher.current_positions[stuff[-1][0]] = grapher.current_positions[stuff[-1][0]] - np.array([0.3, 0])
+        self.wait(2)
 
         self.play(*grapher.animate_position_change_of_mobjects())
-        self.wait(1)
+        self.wait(9)
 
         is_wins = []
         hilight_node_in_win_animations = []
@@ -1393,17 +1407,29 @@ class DefiningHardness(Scene):
             ],
             hilight_node_in_win_animations,
         ]
-        for i, (text, anims) in enumerate(zip(texts, hilight_animss)):
+
+        self.wait(2)
+        for (
+            i,
+            (text, anims, anim_dur, wait_time),
+        ) in enumerate(zip(texts, hilight_animss, [
+            2, 1, 1, 2, 20
+        ], [
+            2, 1, 0, 2, 2
+        ])):
             text.scale(0.5)
             text.move_to(ORIGIN + UP * 1.8 + i * DOWN * 0.5 + RIGHT * 1.1, aligned_edge=LEFT + UP)
             self.play(FadeIn(text))
-            for anim in anims:
-                self.play(anim)
+            for j, anim in enumerate(anims):
+                self.play(anim, run_time=anim_dur/len(anims))
+                if j != len(anims) - 1:
+                    self.wait(0.125)
+            self.wait(wait_time)
 
         self.wait(1)
 
 
-class VisualizingHardness(Scene):
+class S09VisualizingHardness(Scene):
     def construct(self):
         data_by_size = load_data_by_size("output_8_5000.json")
 
@@ -1480,8 +1506,9 @@ class VisualizingHardness(Scene):
             new_title_for_y(puzzle_axis_titles[current_data_y])
         )
 
+        self.wait(5)
         self.play(FadeIn(ax, ax_labels))
-        self.wait()
+        self.wait(6)
 
         hilighted_dot = None
         index_of_closest = 0
@@ -1499,7 +1526,7 @@ class VisualizingHardness(Scene):
         def add_dots(a, b):
             new_dots = []
             for i, (n, e) in enumerate(list(zip(puzzle_data_scaled[current_data_x], puzzle_data_scaled[current_data_y]))[a:b]):
-                dot = Dot(ax.c2p(n, e))
+                dot = Dot(ax.c2p(n, e)).scale(0.5)
                 dot.has_been_scaled = False
                 dot.add_updater(dot_updater)
                 dot.graph_x_pos = n
@@ -1511,7 +1538,7 @@ class VisualizingHardness(Scene):
 
         add_dots(0, 20)
 
-        self.wait(1)
+        # self.wait(1)
 
         x_diff = (ax.c2p(1, 0) - ax.c2p(0, 0))[0]
         y_diff = (ax.c2p(0, 1) - ax.c2p(0, 0))[1]
@@ -1604,7 +1631,7 @@ class VisualizingHardness(Scene):
             rate_func=linear
         )
 
-        self.wait(1)
+        # self.wait(4)
 
         add_dots(20, -1)
 
@@ -1613,7 +1640,7 @@ class VisualizingHardness(Scene):
         self.play(
             MoveAlongPath(show_offer, show_offer_oval),
             # show_offer.animate.shift(-RIGHT * x_diff_whole_graph * 1.0 - UP * y_diff_whole_graph * 1.0),
-            run_time=10,
+            run_time=20,
             rate_func=linear
         )
 
@@ -1627,7 +1654,7 @@ class VisualizingHardness(Scene):
         y_hist = add_histogram(False, ax, puzzle_data_scaled[current_data_y], bucket_count=hist_bucket_count)
         self.play(FadeIn(y_hist))
 
-        self.wait(1)
+        self.wait(7)
 
         def number_as_text(number) -> Mobject:
             if isinstance(number, float):
@@ -1703,31 +1730,48 @@ class VisualizingHardness(Scene):
             self.play(*anims)
 
         change_dot_axis(1, 0)
-        self.wait(1)
-        change_dot_axis(1, 2)
-        self.wait(1)
+        self.wait(12)
+        # change_dot_axis(1, 2)
+        # self.wait(4)
         change_dot_axis(1, 3)
-        self.wait(1)
+        self.wait(12)
         change_dot_axis(1, 4)
-        self.wait(1)
+        self.wait(5)
+        # Fade in a circle at the bottom right quarter of the screen
+        self.play(FadeIn(
+            Circle(
+                radius=2,
+                stroke_width=1,
+            ).shift(RIGHT * 3 + DOWN * 2)
+        ))
+        self.wait(10)
 
 
-class MutatingPuzzle(Scene):
+class S10MutatingPuzzle(Scene):
     def construct(self):
         data_by_size = load_data_by_size("output_8_5000.json")
         my_data = data_by_size[8]["puzzles"]
 
-        with open("watersort/watersort_rust/output_mutate2.json") as f:
+        with open("watersort/watersort_rust/output_mutate3.json") as f:
             lines = f.readlines()
             mutate_data = [json.loads(line) for line in lines]
 
         current_puzzle = WaterPuzzle.new_from_hashable_state(mutate_data[0]["pipes"])
         current_puzzle.scale_properly(0.35)
-        current_puzzle.move_to(ORIGIN + LEFT * 3.5)
+        current_puzzle.move_to(ORIGIN + LEFT * 3.5 + DOWN * 0.5)
 
-        self.play(FadeIn(current_puzzle))
+        self.wait(5)
 
-        self.wait(1)
+        title = Text("Optimizing for difficulty")
+        self.play(FadeIn(title))
+        self.wait(5)
+
+        self.play(
+            FadeIn(current_puzzle),
+            FadeOut(title),
+        )
+
+        self.wait()
 
         texts = [
             "Length of shortest path",
@@ -1755,32 +1799,59 @@ class MutatingPuzzle(Scene):
             Axes(
                 x_range=(0, 1),
                 y_range=(0, 1),
-            ).scale(0.25)
+            ).scale(0.18)
             for _ in range(5)
         ]
 
-        scale_x = 5.0
+        scale_x = 2.5
         scale_y = 2.2
 
-        axes[0].move_to(ORIGIN + UP * 1.0 * scale_y + RIGHT * 0.3 * scale_x)
-        axes[1].move_to(ORIGIN + UP * 0.0 * scale_y + RIGHT * 0.3 * scale_x)
-        axes[2].move_to(ORIGIN + UP * -1.0 * scale_y + RIGHT * 0.3 * scale_x)
-
-        axes[3].move_to(ORIGIN + UP * 0.5 * scale_y + RIGHT * 1.0 * scale_x)
-        axes[4].move_to(ORIGIN + UP * -0.5 * scale_y + RIGHT * 1.0 * scale_x)
+        for i in range(5):
+            axes[i].move_to(ORIGIN + UP * 1.0 * scale_y + RIGHT * (i - 2) * scale_x)
+        #
+        # axes[0].move_to(ORIGIN + UP * 1.0 * scale_y + RIGHT * 0.3 * scale_x)
+        # axes[1].move_to(ORIGIN + UP * 0.0 * scale_y + RIGHT * 0.3 * scale_x)
+        # axes[2].move_to(ORIGIN + UP * -1.0 * scale_y + RIGHT * 0.3 * scale_x)
+        #
+        # axes[3].move_to(ORIGIN + UP * 0.5 * scale_y + RIGHT * 1.0 * scale_x)
+        # axes[4].move_to(ORIGIN + UP * -0.5 * scale_y + RIGHT * 1.0 * scale_x)
 
         # self.play(FadeIn(*axes))
         graph_rect_titles = [
             Text(text)
-            .scale(0.45)
-            .move_to(ax.get_center() + UP * 0.99)
+            .scale(0.35)
+            .move_to(ax.get_center() + UP * 0.80)
             for text, ax in zip(texts, axes)
         ]
 
         self.play(FadeIn(*axes, *graph_rect_titles))
 
+        self.wait(2)
+
+        ax_scatter = Axes(
+            x_range=(0, 1),
+            y_range=(0, 1),
+        ).scale(0.5).shift(RIGHT * 3 + DOWN * 1.5)
+        ax_scatter.scale(0.8).shift(LEFT)  # TODO: TEMP
+        scatter_dots = [
+            Dot(
+                ax_scatter.c2p(
+                    d["nodes"] / max_vals[1],
+                    d["random_play_wins"] / max_vals[4],
+                ),
+            ).scale(0.3)
+            for d in my_data[0:500]
+        ]
+
+        self.play(
+            FadeIn(ax_scatter, *scatter_dots),
+        )
+
         last_dots = []
         for mut_index, mutated in enumerate(mutate_data):
+            # if mut_index > 100:
+            #     break
+
             if not mutated["is_improvenment"]:
                 continue
 
@@ -1797,7 +1868,9 @@ class MutatingPuzzle(Scene):
             new_dots = []
             new_lines = []
             min_factors = [min_vals[0] - 10, min_vals[1], min_vals[2], 0, 0]
-            max_factors = [max_vals[0] + 3, max_vals[1] * 3, max_vals[2] * 3, 1.0, 5000]
+            max_factors = [max_vals[0] + 3, max_vals[1] * 3, max_vals[2] * 3, 1.0, 50000]  # TODO: Note hardcoded last val...
+
+            # Add to 5 upper graphs
             for (
                 ax, val, max_val, min_val
             ) in zip(axes, cur_vals, max_factors, min_factors):
@@ -1809,14 +1882,34 @@ class MutatingPuzzle(Scene):
                 if last_dots:
                     for a, b in zip(last_dots, new_dots):
                         new_lines.append(Line(a.get_center(), b.get_center(), color=WHITE))
+
+            # Add to scatter plot
+            dot = Dot(
+                ax_scatter.c2p(
+                    cur_vals[1] / max_vals[1],
+                    cur_vals[4] / (max_vals[4] * 10),  # TODO: "* 10" is a hack.. scale changed between runs
+                ),
+                color=YELLOW
+            ).scale(0.5)
+            new_dots.append(dot)
+            if last_dots:
+                last_dot = last_dots[-1]
+                new_lines.append(
+                    Line(
+                        last_dot.get_center(),
+                        dot.get_center(),
+                        color=YELLOW
+                    )
+                )
+
             last_dots = new_dots
 
-            self.play(FadeIn(*new_dots, *new_lines), run_time=0.2)
+            self.play(FadeIn(*new_dots, *new_lines), run_time=1)
 
         self.wait(1)
 
 
-class TitleScreen(Scene):
+class S00TitleScreen(Scene):
     def construct(self):
         title1 = Text("Lets code:")
         title2 = Text("Water Sort Puzzle solver")

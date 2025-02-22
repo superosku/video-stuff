@@ -327,7 +327,7 @@ impl WaterSortSearcher {
         if let Some(ssolved) = self.solved_state.clone() {
             let sssolved = ssolved.hashable();
             let ssstart = self.puzzle.hashable();
-            for i in 0..5000 {
+            for i in 0..50000 {
                 let mut state = ssstart;
                 let mut rng = rand::thread_rng();
                 for _ in 0..50 {
@@ -500,22 +500,26 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
         .unwrap();
     writeln!(file, "{}", serialized_initial).unwrap();
 
-    let it_per_thing = 2000;
+    let it_per_thing = 50000;
 
     for i in 0..it_per_thing {
         let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
         let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
         mutated_state.solve_additional();
 
-        let is_improvenment = mutated_state.nodes.len() > state.nodes.len();
+        let is_improvenment = (
+            mutated_state.nodes.len() > state.nodes.len() &&
+            mutated_state.random_play_wins < state.random_play_wins &&
+            mutated_state.is_solvable
+        );
 
         let json_line_output = get_mutate_output_line(&mutated_state, is_improvenment, i + 1);
 
         if is_improvenment {
-            println!("Iteration: {} Nodes: {}", i, mutated_state.nodes.len());
+            println!("Iteration: {} Nodes: {} Rand: {} (Accepted)", i, mutated_state.nodes.len(), mutated_state.random_play_wins);
             state = mutated_state;
         } else {
-            println!("Iteration: {} Nodes: {} (Rejected)", i, mutated_state.nodes.len());
+            println!("Iteration: {} Nodes: {} Rand: {} Solvable: {} (Rejected)", i, mutated_state.nodes.len(), mutated_state.random_play_wins, mutated_state.is_solvable);
         }
 
         let serialized = serde_json::to_string(&json_line_output).unwrap();
@@ -527,61 +531,61 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
         writeln!(file, "{}", serialized).unwrap();
     }
 
-    for i in it_per_thing..(it_per_thing * 2) {
-        let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
-        let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
-        mutated_state.solve_additional();
-
-        let is_improvenment = mutated_state.random_play_wins < state.random_play_wins && mutated_state.random_play_wins > 0;
-
-        let json_line_output = get_mutate_output_line(&mutated_state, is_improvenment, i + 1);
-
-        if is_improvenment {
-            println!("Iteration: {} Nodes: {}", i, mutated_state.nodes.len());
-            state = mutated_state;
-        } else {
-            println!("Iteration: {} Nodes: {} (Rejected)", i, mutated_state.nodes.len());
-        }
-
-        let serialized = serde_json::to_string(&json_line_output).unwrap();
-        let mut file = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .open(file_name)
-            .unwrap();
-        writeln!(file, "{}", serialized).unwrap();
-    }
-
-    for i in (it_per_thing * 2)..(it_per_thing * 3) {
-        let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
-        let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
-        mutated_state.solve_additional();
-
-        let is_improvenment = mutated_state.random_play_wins > state.random_play_wins && mutated_state.random_play_wins > 0;
-
-        let json_line_output = get_mutate_output_line(&mutated_state, is_improvenment, i + 1);
-
-        if is_improvenment {
-            println!("Iteration: {} Nodes: {}", i, mutated_state.nodes.len());
-            state = mutated_state;
-        } else {
-            println!("Iteration: {} Nodes: {} (Rejected)", i, mutated_state.nodes.len());
-        }
-
-        let serialized = serde_json::to_string(&json_line_output).unwrap();
-        let mut file = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .open(file_name)
-            .unwrap();
-        writeln!(file, "{}", serialized).unwrap();
-    }
+    // for i in it_per_thing..(it_per_thing * 2) {
+    //     let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
+    //     let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
+    //     mutated_state.solve_additional();
+    //
+    //     let is_improvenment = mutated_state.random_play_wins < state.random_play_wins && mutated_state.random_play_wins > 0;
+    //
+    //     let json_line_output = get_mutate_output_line(&mutated_state, is_improvenment, i + 1);
+    //
+    //     if is_improvenment {
+    //         println!("Iteration: {} Nodes: {}", i, mutated_state.nodes.len());
+    //         state = mutated_state;
+    //     } else {
+    //         println!("Iteration: {} Nodes: {} (Rejected)", i, mutated_state.nodes.len());
+    //     }
+    //
+    //     let serialized = serde_json::to_string(&json_line_output).unwrap();
+    //     let mut file = OpenOptions::new()
+    //         .write(true)
+    //         .append(true)
+    //         .open(file_name)
+    //         .unwrap();
+    //     writeln!(file, "{}", serialized).unwrap();
+    // }
+    //
+    // for i in (it_per_thing * 2)..(it_per_thing * 3) {
+    //     let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
+    //     let mut mutated_state = WaterSortSearcher::new_from_state(mutated_puzzle);
+    //     mutated_state.solve_additional();
+    //
+    //     let is_improvenment = mutated_state.random_play_wins > state.random_play_wins && mutated_state.random_play_wins > 0;
+    //
+    //     let json_line_output = get_mutate_output_line(&mutated_state, is_improvenment, i + 1);
+    //
+    //     if is_improvenment {
+    //         println!("Iteration: {} Nodes: {}", i, mutated_state.nodes.len());
+    //         state = mutated_state;
+    //     } else {
+    //         println!("Iteration: {} Nodes: {} (Rejected)", i, mutated_state.nodes.len());
+    //     }
+    //
+    //     let serialized = serde_json::to_string(&json_line_output).unwrap();
+    //     let mut file = OpenOptions::new()
+    //         .write(true)
+    //         .append(true)
+    //         .open(file_name)
+    //         .unwrap();
+    //     writeln!(file, "{}", serialized).unwrap();
+    // }
 
     println!("Best Nodes: {}", state.nodes.len());
 }
 
 fn main() {
     // write_data_to_file(4..41, "output.json", 20);  // Solvable vs non solvable puzzles
-    write_data_to_file(8..9, "output_8_5000.json", 5000);  // Visualizing on graph with random puzzles
-    // mutate_stuff(8, "output_mutate2.json");  // Mutation script
+    // write_data_to_file(8..9, "output_8_5000.json", 5000);  // Visualizing on graph with random puzzles
+    mutate_stuff(8, "output_mutate3.json");  // Mutation script
 }
