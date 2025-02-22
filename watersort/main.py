@@ -377,10 +377,15 @@ class S05PathFinding(Scene):
 
                 if y == 7 and 2 < x < 12:
                     square.is_wall = True
-                    # square.set_fill(WHITE, 1.0)
                 if x == 11 and 1 < y < 7:
                     square.is_wall = True
-                    # square.set_fill(WHITE, 1.0)
+                if (x, y) in [
+                    (3, 2), (3, 3), (3, 4), (3, 5),
+                    (4, 5), (5, 5), (6, 5),
+                    (4, 2), (5, 2), (6, 2),
+                    (12, 2), (13, 2), (14, 2), (15, 2)
+                ]:
+                    square.is_wall = True
 
                 squares.append(square)
                 squares_by_coords[(x, y)] = square
@@ -409,6 +414,7 @@ class S05PathFinding(Scene):
         person_square = squares_by_coords[self.start_coords]
         person = Circle(radius=0.2).move_to(person_square.get_center()).set_z_index(20)
         person.set_fill(GREEN, 1.0)
+        person.set_stroke(GREEN, 1.0)
         self.person = person
 
         goal_square = squares_by_coords[self.goal_coords]
@@ -588,32 +594,32 @@ class S05PathFinding(Scene):
         self.wait(2)
 
         self.animate_path_finding()
-        self.clear_path_finding_text()
 
-        self.wait()
+        self.wait(5)
 
     def animate_path_finding(self, slow_start=False):
-        nodes = []
+        all_visited_nodes = []
         self.all_texts = []
         node_i = 0
 
-        def push_nodes_to_queue(node_distances: list[tuple[int, tuple[int, int]]]) -> list[Animation]:
-            for distance, coords in node_distances:
-                nodes.append((distance, coords))
+        # def push_nodes_to_queue(node_distances: list[tuple[int, tuple[int, int]]]) -> list[Animation]:
+        #     for distance, coords in node_distances:
+        #         nodes.append((distance, coords))
 
-        def pop_from_node_queue(node_i) -> tuple[int, int, tuple[int, int]]:
-            distance, coords = nodes[node_i]
-
-            return (
-                (node_i + 1, distance, coords)
-            )
+        # def pop_from_node_queue(node_i) -> tuple[int, int, tuple[int, int]]:
+        #     distance, coords = nodes[node_i]
+        #
+        #     return (
+        #         (node_i + 1, distance, coords)
+        #     )
 
         def get_text_to_push(distance, coords):
             center = self.rows[coords[1]][coords[0]].get_center()
-            return VGroup(
-                Text(f"{distance}").set_z_index(30).scale(0.5).move_to(center),
-                Circle(radius=0.2, color=RED).move_to(center).set_z_index(30)
-            )
+            return Text(f"{distance}").set_z_index(30).scale(0.4).move_to(center)
+            # return VGroup(
+            #     Text(f"{distance}").set_z_index(30).scale(0.5).move_to(center),
+            #     Circle(radius=0.2, color=RED).move_to(center).set_z_index(30)
+            # )
 
         all_anims = []
 
@@ -621,84 +627,97 @@ class S05PathFinding(Scene):
         self.all_texts.append(start_text)
         all_anims.append([FadeIn(start_text)])
 
-        push_nodes_to_queue([(0, self.start_coords)])
+        # push_nodes_to_queue([(0, self.start_coords)])
+        node_queue = [(0, self.start_coords)]
+        all_visited_nodes.append((0, self.start_coords))
 
-        for _ in range(500):
-            text_to_fade_out = self.all_texts[node_i]
-            node_i, distance, current_node = pop_from_node_queue(node_i)
+        for limiting_index in range(500):
+            # text_to_fade_out = self.all_texts[node_i]
+            # node_i, distance, current_node = pop_from_node_queue(node_i)
 
-            if current_node == self.goal_coords:
-                assert 0  # This should not happen
-                print("FOUND SOLUTION")
-                break
-            x, y = current_node
+            # if current_node == self.goal_coords:
+            #     assert 0  # This should not happen
+            #     print("FOUND SOLUTION")
+            #     break
+            # x, y = current_node
 
+            new_node_queue = []
             nodes_to_push = []
             texts_to_push = []
 
-            if x + 1 < self.width and self.rows[y][x + 1].fill_color != WHITE:
-                if not any([node[1] == (x + 1, y) for node in nodes]):
-                    nodes_to_push.append((x + 1, y))
-                    texts_to_push.append(get_text_to_push(distance + 1, (x + 1, y)))
-            if y + 1 < self.height and self.rows[y + 1][x].fill_color != WHITE:
-                if not any([node[1] == (x, y + 1) for node in nodes]):
-                    nodes_to_push.append((x, y + 1))
-                    texts_to_push.append(get_text_to_push(distance + 1, (x, y + 1)))
-            if x - 1 >= 0 and self.rows[y][x - 1].fill_color != WHITE:
-                if not any([node[1] == (x - 1, y) for node in nodes]):
-                    nodes_to_push.append((x - 1, y))
-                    texts_to_push.append(get_text_to_push(distance + 1, (x - 1, y)))
-            if y - 1 >= 0 and self.rows[y - 1][x].fill_color != WHITE:
-                if not any([node[1] == (x, y - 1) for node in nodes]):
-                    nodes_to_push.append((x, y - 1))
-                    texts_to_push.append(get_text_to_push(distance + 1, (x, y - 1)))
+            to_break = False
 
-            asdf = [(distance + 1, node) for node in nodes_to_push]
-            push_nodes_to_queue(asdf)
+            print("Looping node queue", len(node_queue))
+            for node in node_queue:
+                distance, (x, y) = node
+
+                if x + 1 < self.width and self.rows[y][x + 1].fill_color != WHITE:
+                    if not any([node[1] == (x + 1, y) for node in all_visited_nodes]):
+                        all_visited_nodes.append((distance + 1, (x + 1, y)))
+                        nodes_to_push.append((x + 1, y))
+                        texts_to_push.append(get_text_to_push(distance + 1, (x + 1, y)))
+                if y + 1 < self.height and self.rows[y + 1][x].fill_color != WHITE:
+                    if not any([node[1] == (x, y + 1) for node in all_visited_nodes]):
+                        all_visited_nodes.append((distance + 1, (x, y + 1)))
+                        nodes_to_push.append((x, y + 1))
+                        texts_to_push.append(get_text_to_push(distance + 1, (x, y + 1)))
+                if x - 1 >= 0 and self.rows[y][x - 1].fill_color != WHITE:
+                    if not any([node[1] == (x - 1, y) for node in all_visited_nodes]):
+                        all_visited_nodes.append((distance + 1, (x - 1, y)))
+                        nodes_to_push.append((x - 1, y))
+                        texts_to_push.append(get_text_to_push(distance + 1, (x - 1, y)))
+                if y - 1 >= 0 and self.rows[y - 1][x].fill_color != WHITE:
+                    if not any([node[1] == (x, y - 1) for node in all_visited_nodes]):
+                        all_visited_nodes.append((distance + 1, (x, y - 1)))
+                        nodes_to_push.append((x, y - 1))
+                        texts_to_push.append(get_text_to_push(distance + 1, (x, y - 1)))
+
+                for coord in nodes_to_push:
+                    if coord == self.goal_coords:
+                        to_break = True
+
+            new_node_queue += [(distance + 1, node) for node in nodes_to_push]
+
+            node_queue = new_node_queue
+
+            print("limiting_index", limiting_index, len(texts_to_push))
 
             animations = [
                 *[FadeIn(text) for text in texts_to_push],
-                text_to_fade_out[1].animate.set_stroke(opacity=0)  # Do not fade out but set the opacity to fix a bug
+                # text_to_fade_out[1].animate.set_stroke(opacity=0)  # Do not fade out but set the opacity to fix a bug
             ]
             self.all_texts.extend(texts_to_push)
-            all_anims.append(animations)
-
-            to_break = False
-            for _, node in asdf:
-                if node == self.goal_coords:
-                    print("FOUND SOLUTION")
-                    to_break = True
+            self.play(*animations)
 
             if to_break:
                 break
 
-        all_sub_anims = [AnimationGroup(*anims) for anims in all_anims if anims]
-        slow_and_fast_split = 4
+        # all_sub_anims = [AnimationGroup(*anims) for anims in all_anims if anims]
+        # slow_and_fast_split = 4
+        # # The slow part at the beginning
+        # if slow_start:
+        #     self.wait(9)
+        #     self.play(all_sub_anims[0])
+        #     self.wait(7)
+        #     self.play(all_sub_anims[1])
+        #     self.wait(16)
+        #     self.play(all_sub_anims[2])
+        #     self.wait(1)
+        #     self.play(all_sub_anims[3])
+        #     # self.wait(1)
+        #     # self.play(all_sub_anims[4])
+        #     # self.wait(1)
+        #     # self.play(all_sub_anims[5])
+        #     # self.wait(1)
+        #
+        # # The fast part
+        # self.play(AnimationGroup(
+        #     all_sub_anims[slow_and_fast_split:] if slow_start else all_sub_anims,
+        #     run_time=8,
+        #     lag_ratio=0.2,
+        # ))
 
-        # The slow part at the beginning
-        if slow_start:
-            self.wait(9)
-            self.play(all_sub_anims[0])
-            self.wait(7)
-            self.play(all_sub_anims[1])
-            self.wait(16)
-            self.play(all_sub_anims[2])
-            self.wait(1)
-            self.play(all_sub_anims[3])
-            # self.wait(1)
-            # self.play(all_sub_anims[4])
-            # self.wait(1)
-            # self.play(all_sub_anims[5])
-            # self.wait(1)
-
-        # The fast part
-        self.play(AnimationGroup(
-            all_sub_anims[slow_and_fast_split:] if slow_start else all_sub_anims,
-            run_time=8,
-            lag_ratio=0.2,
-        ))
-
-        win_distance, (win_x, win_y) = [n for n in nodes if n[1] == self.goal_coords][0]
+        win_distance, (win_x, win_y) = [n for n in all_visited_nodes if n[1] == self.goal_coords][0]
         cur_dist, cur_x, cur_y = win_distance, win_x, win_y
 
         path = []
@@ -706,7 +725,7 @@ class S05PathFinding(Scene):
         for i in range(100):
             path.append((cur_x, cur_y))
             close_to_wins = sorted([
-                (d, (x, y)) for d, (x, y) in nodes
+                (d, (x, y)) for d, (x, y) in all_visited_nodes
                 if cur_x - 1 <= x <= cur_x + 1  # Next to this x wise
                 and cur_y - 1 <= y <= cur_y + 1  # Next to this y wise
                 and abs(cur_x - x) + abs(cur_y - y) == 1  # But not diagonal
@@ -720,8 +739,9 @@ class S05PathFinding(Scene):
 
         # Animate moving of the player towards the goal
         path_mobjects = [self.rows[y][x] for x, y in path]
+
         self.play(AnimationGroup(
-            *[Indicate(square, color=WHITE) for square in path_mobjects],
+            *[Indicate(square, color=GREY) for square in path_mobjects],
             run_time=8 if slow_start else 2,
             lag_ratio=0.2,
             rate_func=rate_functions.ease_in_cubic if slow_start else rate_functions.linear,
@@ -737,7 +757,7 @@ class S05PathFinding(Scene):
 
         self.wait()
 
-        self.play(FadeOut(thing), FadeOut(self.goal))
+        self.play(FadeOut(self.goal))
         self.goal.move_to(self.rows[self.goal_coords[1]][self.goal_coords[0]].get_center())
         self.play(FadeIn(self.goal))
 
