@@ -280,7 +280,7 @@ class WaterPuzzle(VGroup):
 
 class S01WaterPuzzleSolved(Scene):
     def construct(self):
-        puzzle = WaterPuzzle.new_random(color_count=8, playback_speed=0.2 * (25 / 15) * 0.9, random_seed=444)
+        puzzle = WaterPuzzle.new_random(color_count=6, playback_speed=0.2 * (25 / 15) * 0.9, random_seed=444)
         puzzle.scale_properly(0.8)
 
         self.play(FadeIn(puzzle))
@@ -1041,19 +1041,22 @@ class S03HarderAndHarder(Scene):
 
 class S04GettingStuck(Scene):
     def construct(self):
-        puzz = WaterPuzzleState.new_random(num_colors=8, random_seed=123)
-        puzzle = WaterPuzzle(puzz)
-        solver = puzzle.solver
-        solver.solve()
-
-        stuck_nodes_by_distance = sorted(solver.nodes_and_distance_that_have_no_moves, key=lambda x: x[0])
         old_puzzle = None
 
-        for n in [0, 5, 21]:
-            puzz = WaterPuzzleState.new_random(num_colors=8, random_seed=123)
+        for num_colors, n in zip(
+            [4, 8, 8],
+            [None, 5, 21]
+        ):
+            puzz = WaterPuzzleState.new_random(num_colors=num_colors, random_seed=123)
             puzzle = WaterPuzzle(puzz)
+            solver = puzzle.solver
+            solver.solve()
 
-            pour_instructions = solver.get_pour_instructions_into(stuck_nodes_by_distance[n][1].hashable())
+            if n is None:
+                pour_instructions = solver.solve_instructions
+            else:
+                stuck_nodes_by_distance = sorted(solver.nodes_and_distance_that_have_no_moves, key=lambda x: x[0])
+                pour_instructions = solver.get_pour_instructions_into(stuck_nodes_by_distance[n][1].hashable())
 
             scale = 0.8
             puzzle.scale_properly(scale)
@@ -1075,12 +1078,14 @@ class S04GettingStuck(Scene):
 
             puzzle.animate_pours(self, pour_instructions)
 
-            animate_cross_fade_in_out(self)
+            if num_colors != 5:
+                animate_cross_fade_in_out(self)
 
             for flask in puzzle.flasks:
                 flask.rotating = True
             old_puzzle = puzzle
-            # self.play(puzzle.animate.shift(DOWN * 8))
+
+        self.wait(10)
 
 
 def load_data_by_size(file_name="output.json"):
@@ -1757,6 +1762,8 @@ class S09VisualizingHardness(Scene):
         self.wait(12)
         change_dot_axis(1, 4)
         self.wait(5)
+        change_dot_axis(3, 4)
+        self.wait(5)
         # Fade in a circle at the bottom right quarter of the screen
         self.play(FadeIn(
             Circle(
@@ -1859,7 +1866,7 @@ class S10MutatingPuzzle(Scene):
                     d["nodes"] / max_vals[1],
                     d["random_play_wins"] / max_vals[4],
                 ),
-            ).scale(0.3)
+            ).scale(0.3).set_stroke(WHITE, opacity=0.3).set_fill(WHITE, opacity=0.3)
             for d in my_data[0:500]
         ]
 
