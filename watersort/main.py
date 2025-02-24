@@ -319,9 +319,41 @@ class S02WaterPuzzleExplained(Scene):
             playback_speed=1.0,
         )
         puzzle.scale_properly(1.0)
-        self.play(FadeIn(puzzle))
+
+        sorted_puzzle = WaterPuzzle.new_from_hashable_state((
+            (1, 1, 1, 1),
+            (2, 2, 2, 2),
+            (3, 3, 3, 3),
+            (4, 4, 4, 4),
+            (0, 0, 0, 0),
+            (0, 0, 0, 0),
+        ))
+        sorted_puzzle.scale_properly(1.0)
+
+        for flask in puzzle.flasks:
+            flask.rotating = True
+        initial_vgroup_1 = VGroup(puzzle.all_flasks_and_masks[-1][:4])
+        move_amount = initial_vgroup_1.get_center() - puzzle.all_flasks.get_center()
+        initial_vgroup_1.shift(-move_amount)
+        initial_vgroup_2 = VGroup(
+            puzzle.all_flasks_and_masks[-1][4:],
+            puzzle.all_flasks_and_masks[:-1]
+        )
+        self.play(FadeIn(initial_vgroup_1))
+        self.wait(2)
+        self.play(
+            FadeIn(initial_vgroup_2),
+            initial_vgroup_1.animate.shift(move_amount)
+        )
+        for flask in puzzle.flasks:
+            flask.rotating = False
 
         self.wait(2)
+
+        # Quickly fade in and out, 0.5s
+        self.play(FadeIn(sorted_puzzle), run_time=0.5)
+        self.wait(1)
+        self.play(FadeOut(sorted_puzzle), run_time=0.5)
 
         # Pour to empty spot
         puzzle.animate_pours(self, [PourInstruction(2, 4, 2, 3, 4)])
@@ -333,7 +365,7 @@ class S02WaterPuzzleExplained(Scene):
 
         # Animate pouring multiple
         puzzle.animate_pours(self, [PourInstruction(1, 2, 2, 2, 2)])
-        self.wait(0.5)
+        self.wait(2)
 
         # Invalid pour over different color
         from_invalid = 1
@@ -1044,8 +1076,8 @@ class S04GettingStuck(Scene):
         old_puzzle = None
 
         for num_colors, n in zip(
-            [4, 8, 8],
-            [None, 5, 21]
+            [3, 8],
+            [None, 5]  # TODO: Is this 5 a good "number of pours" or something else?
         ):
             puzz = WaterPuzzleState.new_random(num_colors=num_colors, random_seed=123)
             puzzle = WaterPuzzle(puzz)
@@ -1078,7 +1110,7 @@ class S04GettingStuck(Scene):
 
             puzzle.animate_pours(self, pour_instructions)
 
-            if num_colors != 5:
+            if n is not None:
                 animate_cross_fade_in_out(self)
 
             for flask in puzzle.flasks:
