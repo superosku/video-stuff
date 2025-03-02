@@ -500,7 +500,7 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
         .unwrap();
     writeln!(file, "{}", serialized_initial).unwrap();
 
-    let it_per_thing = 50000;
+    let it_per_thing = 100000;
 
     for i in 0..it_per_thing {
         let mutated_puzzle = WaterSortState::new_mutated(&state.puzzle);
@@ -587,5 +587,5 @@ fn mutate_stuff(color_count: usize, file_name: &str) {
 fn main() {
     // write_data_to_file(4..41, "output.json", 20);  // Solvable vs non solvable puzzles
     // write_data_to_file(8..9, "output_8_5000.json", 5000);  // Visualizing on graph with random puzzles
-    mutate_stuff(8, "output_mutate3.json");  // Mutation script
+    mutate_stuff(8, "random_play_wins_and_nodes_2.json");  // Mutation script
 }

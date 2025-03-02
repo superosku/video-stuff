@@ -178,7 +178,7 @@ class Grapher:
                 .set_z_index(10000)
             )
             if puzzle == self.hash_to_node_mgroup[self.first_node]:
-                circle.set_fill(color=RED, opacity=1)
+                circle.set_fill(color=BLUE, opacity=1)
             if puzzle == self.hash_to_node_mgroup[self.goal_node]:
                 circle.set_fill(color=GREEN, opacity=1)
 

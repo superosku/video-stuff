@@ -144,7 +144,6 @@ class WaterPuzzle(VGroup):
     @classmethod
     def new_from_hashable_state(cls, hashable_state: HashablePuzzleState, playback_speed: float = 0.3):
         puzzle = WaterPuzzleState.from_hashable_state(hashable_state)
-        # breakpoint()
 
         return cls(
             puzzle,
@@ -280,17 +279,18 @@ class WaterPuzzle(VGroup):
 
 class S01WaterPuzzleSolved(Scene):
     def construct(self):
-        puzzle = WaterPuzzle.new_random(color_count=6, playback_speed=0.2 * (25 / 15) * 0.9, random_seed=444)
+        puzzle = WaterPuzzle.new_random(color_count=6, playback_speed=0.2 * (25 / 15) * 0.9 * 1.3, random_seed=444)
         puzzle.scale_properly(0.8)
 
-        self.play(FadeIn(puzzle))
-        self.wait(22)
+        self.add(puzzle)
+        # self.play(FadeIn(puzzle))
+        # self.wait(22)
 
         puzzle.solver.solve()
         puzzle.animate_pours(self, puzzle.solver.solve_instructions)
 
+        self.wait(10)
         self.play(FadeOut(puzzle))
-        self.wait(1)
 
 
 def animate_cross_fade_in_out(scene: Scene):
@@ -332,6 +332,7 @@ class S02WaterPuzzleExplained(Scene):
 
         for flask in puzzle.flasks:
             flask.rotating = True
+
         initial_vgroup_1 = VGroup(puzzle.all_flasks_and_masks[-1][:4])
         move_amount = initial_vgroup_1.get_center() - puzzle.all_flasks.get_center()
         initial_vgroup_1.shift(-move_amount)
@@ -339,8 +340,9 @@ class S02WaterPuzzleExplained(Scene):
             puzzle.all_flasks_and_masks[-1][4:],
             puzzle.all_flasks_and_masks[:-1]
         )
-        self.play(FadeIn(initial_vgroup_1))
-        self.wait(2)
+        self.add(initial_vgroup_1)
+        # self.play(FadeIn(initial_vgroup_1))
+        self.wait(8)
         self.play(
             FadeIn(initial_vgroup_2),
             initial_vgroup_1.animate.shift(move_amount)
@@ -352,10 +354,11 @@ class S02WaterPuzzleExplained(Scene):
 
         # Quickly fade in and out, 0.5s
         self.play(FadeIn(sorted_puzzle), run_time=0.5)
-        self.wait(1)
+        self.wait(1+7-3)
         self.play(FadeOut(sorted_puzzle), run_time=0.5)
 
         # Pour to empty spot
+        self.wait(3)
         puzzle.animate_pours(self, [PourInstruction(2, 4, 2, 3, 4)])
         self.wait(0.5)
 
@@ -429,19 +432,21 @@ class S05PathFinding(Scene):
 
         # grid.move_to(ORIGIN + LEFT * 1)
         grid.move_to(ORIGIN)
+        grid.shift(LEFT * 1.8)
         grid.scale(0.5)
+        self.grid = grid
 
-        title = Text("Solver").scale(1.5)
-        self.play(FadeIn(title))
-        self.wait(18)
-        self.play(
-            FadeOut(title),
-            FadeIn(Text("Path finding").move_to(UP * 3.5).scale(0.9))
-        )
-        self.play(FadeIn(Text("Breath First Search (BFS)").move_to(UP * 3.0).scale(0.60)))
-        self.wait(2)
+        # title = Text("Solver").scale(1.5)
+        # self.play(FadeIn(title))
+        # self.wait(18)
+        # self.play(
+        #     FadeOut(title),
+        #     FadeIn(Text("Path finding").move_to(UP * 3.5).scale(0.9))
+        # )
+        # self.play(FadeIn(Text("Breath First Search (BFS)").move_to(UP * 3.0).scale(0.60)))
+        # self.wait(2)
         self.play(FadeIn(grid))
-        self.wait(1)
+        self.wait(2)
 
         person_square = squares_by_coords[self.start_coords]
         person = Circle(radius=0.2).move_to(person_square.get_center()).set_z_index(20)
@@ -454,31 +459,46 @@ class S05PathFinding(Scene):
         goal.set_fill(BLUE, 1.0)
         self.goal = goal
 
+        self.part_1_text = Text("1. Assigning tiles \nwith distance value \nfrom the goal").scale(0.6).shift(RIGHT * 4.75 + UP)
+        # self.part_2_text = Text("2. Follow the \nnumbers").scale(0.6).shift(RIGHT * 4.75 + DOWN)
+        self.part_2_text = Text("2. Follow the \nnumbers").scale(0.6).move_to(self.part_1_text, aligned_edge=LEFT).shift(DOWN * 1.5)
+
+        # self.add(self.part_1_text)
+        # self.add(self.part_2_text)
+
         self.play(FadeIn(goal))
-        self.wait(1.0)
+        self.wait(3)
+
         self.play(FadeIn(person))
-        self.wait(1)
+        self.wait(8)
         self.play(*[
             square.animate.set_fill(WHITE)
             for row in grid
             for square in row
             if square.is_wall
         ])
-        self.wait(20)
+        # self.wait(20)
+
+        self.wait(4)
+        self.play(FadeIn(self.part_1_text))
+        self.wait(5)
 
         # Path finding
         # self.wait()
         self.animate_path_finding(slow_start=True)
         self.clear_path_finding_text()
 
-        # return
-
-        # return  # TODO: Temporary to speedup animation
+        # Move grid back to center
+        self.wait(6)
+        self.play(
+            self.grid.animate.shift(RIGHT * 1.8),
+            goal.animate.shift(RIGHT * 1.8),
+            person.animate.shift(RIGHT * 1.8),
+            FadeOut(self.part_1_text),
+            FadeOut(self.part_2_text),
+        )
 
         # Transformation from grid to graph
-
-        # self.wait()
-
         connecting_lines = []
         edges = []
         connecting_lines_by_edge = {}
@@ -535,7 +555,7 @@ class S05PathFinding(Scene):
             for row in self.rows
         ], [])
 
-        self.wait(9)
+        self.wait(3)
 
         self.play(
             *hide_walls_animations
@@ -619,14 +639,11 @@ class S05PathFinding(Scene):
                         anim = Transform(edge2, Line(posa, posb))
                         animations.append(anim)
 
-        self.wait(4)
+        self.wait(3)
 
         self.play(*animations)
 
-        self.wait(2)
-
         self.animate_path_finding()
-
         self.wait(5)
 
     def animate_path_finding(self, slow_start=False):
@@ -653,16 +670,20 @@ class S05PathFinding(Scene):
             #     Circle(radius=0.2, color=RED).move_to(center).set_z_index(30)
             # )
 
-        all_anims = []
-
         start_text = get_text_to_push(0, self.start_coords)
         self.all_texts.append(start_text)
-        all_anims.append([FadeIn(start_text)])
+
+        self.play(FadeIn(start_text))
+        # all_anims.append([FadeIn(start_text)])
+
+        if slow_start:
+            self.wait(2)
 
         # push_nodes_to_queue([(0, self.start_coords)])
         node_queue = [(0, self.start_coords)]
         all_visited_nodes.append((0, self.start_coords))
 
+        all_anims = []
         for limiting_index in range(500):
             # text_to_fade_out = self.all_texts[node_i]
             # node_i, distance, current_node = pop_from_node_queue(node_i)
@@ -679,7 +700,6 @@ class S05PathFinding(Scene):
 
             to_break = False
 
-            print("Looping node queue", len(node_queue))
             for node in node_queue:
                 distance, (x, y) = node
 
@@ -712,42 +732,24 @@ class S05PathFinding(Scene):
 
             node_queue = new_node_queue
 
-            print("limiting_index", limiting_index, len(texts_to_push))
-
             animations = [
                 *[FadeIn(text) for text in texts_to_push],
                 # text_to_fade_out[1].animate.set_stroke(opacity=0)  # Do not fade out but set the opacity to fix a bug
             ]
             self.all_texts.extend(texts_to_push)
-            self.play(*animations)
+            # self.play(*animations, run_time=0.5)
+            all_anims.append(animations)
 
             if to_break:
                 break
 
-        # all_sub_anims = [AnimationGroup(*anims) for anims in all_anims if anims]
-        # slow_and_fast_split = 4
-        # # The slow part at the beginning
-        # if slow_start:
-        #     self.wait(9)
-        #     self.play(all_sub_anims[0])
-        #     self.wait(7)
-        #     self.play(all_sub_anims[1])
-        #     self.wait(16)
-        #     self.play(all_sub_anims[2])
-        #     self.wait(1)
-        #     self.play(all_sub_anims[3])
-        #     # self.wait(1)
-        #     # self.play(all_sub_anims[4])
-        #     # self.wait(1)
-        #     # self.play(all_sub_anims[5])
-        #     # self.wait(1)
-        #
-        # # The fast part
-        # self.play(AnimationGroup(
-        #     all_sub_anims[slow_and_fast_split:] if slow_start else all_sub_anims,
-        #     run_time=8,
-        #     lag_ratio=0.2,
-        # ))
+        self.play(AnimationGroup(
+            [AnimationGroup(anim) for anim in all_anims],
+            run_time=10,
+            lag_ratio=0.2,
+            # Start slowly and accelerate
+            rate_func=rate_functions.ease_in_quad if slow_start else rate_functions.linear,
+        ))
 
         win_distance, (win_x, win_y) = [n for n in all_visited_nodes if n[1] == self.goal_coords][0]
         cur_dist, cur_x, cur_y = win_distance, win_x, win_y
@@ -767,14 +769,17 @@ class S05PathFinding(Scene):
                 path.append((cur_x, cur_y))
                 break
 
-        self.wait(4 if slow_start else 1)
+        # self.wait(4 if slow_start else 1)
 
         # Animate moving of the player towards the goal
         path_mobjects = [self.rows[y][x] for x, y in path]
 
+        if slow_start:
+            self.play(FadeIn(self.part_2_text))
+
         self.play(AnimationGroup(
             *[Indicate(square, color=GREY) for square in path_mobjects],
-            run_time=8 if slow_start else 2,
+            run_time=5 if slow_start else 2,
             lag_ratio=0.2,
             rate_func=rate_functions.ease_in_cubic if slow_start else rate_functions.linear,
         ))
@@ -785,32 +790,25 @@ class S05PathFinding(Scene):
         ).set_fill(BLUE, opacity=0).set_stroke(PURPLE, opacity=1, width=5).set_z_index(1000000)
         # self.play(Create(thing), run_time=4)
 
-        self.play(MoveAlongPath(self.goal, thing), run_time=4 if slow_start else 2)
+        self.play(MoveAlongPath(self.goal, thing), run_time=3 if slow_start else 2)
 
-        self.wait()
-
-        self.play(FadeOut(self.goal))
+        self.play(FadeOut(self.goal), run_time=0.5)
         self.goal.move_to(self.rows[self.goal_coords[1]][self.goal_coords[0]].get_center())
-        self.play(FadeIn(self.goal))
-
-        self.wait()
+        self.play(FadeIn(self.goal), run_time=0.5)
 
     def clear_path_finding_text(self):
-        self.wait(0.5)
         self.play(
-            FadeOut(text) for text in self.all_texts
+            *[FadeOut(text) for text in self.all_texts],
         )
-        self.wait(0.5)
         self.all_texts = []
-        pass
 
 
 class S06WaterSortAsGraph(Scene):
     def construct(self):
-        title = Text("Water Sort Puzzle as a Graph").scale(1.5)
-        self.play(FadeIn(title))
-        self.wait(10)
-        self.play(FadeOut(title))
+        # title = Text("Water Sort Puzzle as a Graph").scale(1.5)
+        # self.play(FadeIn(title))
+        # self.wait(10)
+        # self.play(FadeOut(title))
 
         # initial_state = WaterPuzzleState.new_random(num_colors=5, random_seed=4)  # TODO: Slow to render but final
         # initial_state = WaterPuzzleState.new_random(num_colors=4, random_seed=4)  # TODO: Slow to render but final
@@ -868,6 +866,8 @@ class S06WaterSortAsGraph(Scene):
 
                 for edge in current_edges:
                     # TODO: Should add direction to edges? Some arrows perhaps?
+                    if edge[0] == edge[1]:
+                        continue
                     if edge[0] == hashable and edge[1] in hash_to_puzzle:
                         # TODO: Does this fix my issues? Does it add duplicate edges?
                         # TODO: HMM maybe it is bi directional if both are added?
@@ -945,12 +945,17 @@ class S06WaterSortAsGraph(Scene):
                 )
 
             lines_to_add = []
+            arrow_pos = []
             for edge_to_add in line_edges_to_add:
                 new_line = Line(
                     hash_to_new_pos[edge_to_add[0]],
                     hash_to_new_pos[edge_to_add[1]],
                     color=WHITE,
                 )
+                arrow_pos.append((
+                    hash_to_new_pos[edge_to_add[0]],
+                    hash_to_new_pos[edge_to_add[1]],
+                ))
                 new_line.from_puzzle_hash = edge_to_add[0]
                 new_line.to_puzzle_hash = edge_to_add[1]
                 lines_to_add.append(new_line)
@@ -963,13 +968,20 @@ class S06WaterSortAsGraph(Scene):
             all_lines += lines_to_add
 
             if i == 0:
-                self.wait(7)
+                self.wait(6)
             if i == 1:
-                self.wait(4 + 25 + 3)
+                arrows = []
+                for line_start, line_end in arrow_pos:
+                    middle = (line_start + line_end * 2) / 3
+                    arrow = Arrow(start=line_start, end=middle, color=WHITE)
+                    arrows.append(arrow)
+                self.wait(2+20-0.5)
+                self.play(FadeIn(*arrows))
+                self.wait(2)
+                self.play(FadeOut(*arrows))
+                self.wait(2+0.5)
 
-            print("ASDF", distance, len(hashables))
-
-        self.wait(8)
+        self.wait(2)
 
         # Fade out all not in path
         fade_out_anims = []
@@ -985,7 +997,7 @@ class S06WaterSortAsGraph(Scene):
         # Zoom in
         self.play(
             *[p.animate.scale(2.0) for k, p in hash_to_puzzle.items() if k in path_nodes],
-            run_time=2
+            run_time=3
         )
 
         # Zoom to path and follow it
@@ -1008,15 +1020,10 @@ class S06WaterSortAsGraph(Scene):
         ).shift(-(path_to_follow[0] - all_vgroup.get_center()))
         self.wait(0.5)
 
-        # self.play(FadeIn(thing), run_time=0.5)
-        # self.play(FadeIn(Dot().move_to(all_vgroup.get_center())))
-        # self.wait(0.5)
-
-        # self.play(MoveAlongPath(all_vgroup, thing), run_time=6) #, rate_func=linear)
-        self.play(MoveAlongPath(all_vgroup, thing), run_time=6, rate_func=rate_functions.ease_in_out_sine)
+        self.play(MoveAlongPath(all_vgroup, thing), run_time=8, rate_func=rate_functions.ease_in_out_sine)
 
         # Wait
-        self.wait(0.1)
+        self.wait(3)
 
 
 class S03HarderAndHarder(Scene):
@@ -1054,7 +1061,7 @@ class S03HarderAndHarder(Scene):
 
         self.play(puzzle1.animate.move_to(puzzle_centers[0]), run_time=run_time)
 
-        self.wait(4)
+        self.wait(3)
 
         for i, ((p1, c1), (p2, c2), wait_time) in enumerate(zip(
             zip(puzzles[1:], puzzle_centers[1:]),
@@ -1066,9 +1073,8 @@ class S03HarderAndHarder(Scene):
             if wait_time > 0:
                 self.wait(wait_time)
 
+        self.wait(2)
         self.play(puzzles[-1].animate.move_to(puzzle_centers[-1] + UP * off_screen), run_time=run_time)
-
-        self.wait()
 
 
 class S04GettingStuck(Scene):
@@ -1139,7 +1145,7 @@ class S07SolvabilityGraph(Scene):
         title = Text("Generating puzzles").scale(1.5)
         subtitle = Text("Solvability").scale(0.8).shift(DOWN * 1.0)
         self.play(FadeIn(title, subtitle))
-        self.wait(9)
+        self.wait(9+5)
         self.play(FadeOut(title, subtitle))
 
         data_by_size = load_data_by_size()
@@ -1152,20 +1158,23 @@ class S07SolvabilityGraph(Scene):
         all_boths = []
 
         color_count_to_sample = 16
+        sample_offset = 95 # To get the 3 unsolvables which matches the audio
 
         colors_to_plot = 35
         puzzles_to_sample = 50
 
-        solvable_at_color = sum([t["solvable"] for t in data_by_size[color_count_to_sample]["puzzles"][:puzzles_to_sample]])
+        solvable_at_color = sum([t["solvable"] for t in data_by_size[color_count_to_sample]["puzzles"][sample_offset:puzzles_to_sample+sample_offset]])
 
         for y in range(height):
             for x in reversed(range(width)):
-                data = data_by_size[color_count_to_sample]["puzzles"][x * height + y]
+                data = data_by_size[color_count_to_sample]["puzzles"][x * height + y + sample_offset]
                 pipes = data["pipes"]
                 puzzle = WaterPuzzle.new_from_hashable_state(pipes)
+                # puzzle = TmpClass()
+                puzzle.pipedata = data
+
                 for flask in puzzle.flasks:
                     flask.rotating = True
-                puzzle.pipedata = data
                 all_flasks = puzzle.all_flasks
                 all_flasks.scale(0.08)
                 for f in all_flasks:
@@ -1173,6 +1182,7 @@ class S07SolvabilityGraph(Scene):
                     for r in f.rectangles:
                         r.set_stroke(width=1.0)
                 # all_flasks.set_stroke(width=0.8)
+
                 surrounding_rect = SurroundingRectangle(all_flasks, buff=0.10, corner_radius=0.05, color=WHITE).set_stroke(width=1.0)
                 both = VGroup(
                     all_flasks,
@@ -1239,7 +1249,7 @@ class S07SolvabilityGraph(Scene):
         # self.play(Transform(all_boths_vgroup, text))
         # text = all_boths_vgroup
 
-        self.wait(1)
+        self.wait(2.5)
 
         ax = Axes(
             x_range=(4, colors_to_plot),  # 30 colors
@@ -1252,20 +1262,21 @@ class S07SolvabilityGraph(Scene):
             {0: "0\%", 1: "100\%"}
         )
 
-        self.play(Write(ax))
-
-        self.wait(1)
 
         dot = Dot(ax.c2p(color_count_to_sample, solvable_at_color / puzzles_to_sample))
         text.color_count = color_count_to_sample
-        self.play(Transform(text, dot))
+        self.play(
+            Write(ax),
+            Transform(text, dot)
+        )
 
-        self.wait(1)
+        self.wait(2)
 
-        all_dots = [text]
+        all_dots = []
         anims = []
         for x in range(4, colors_to_plot + 1):
             if x == color_count_to_sample:
+                all_dots.append(text)
                 continue
 
             y = sum([t["solvable"] for t in data_by_size[x]["puzzles"][0:puzzles_to_sample]]) / puzzles_to_sample  # Only 50 first puzzles
@@ -1278,12 +1289,11 @@ class S07SolvabilityGraph(Scene):
         self.play(
             AnimationGroup(
                 *anims,
-                run_time=6,
+                run_time=5,
                 lag_ratio=0.2,
             ),
         )
-
-        self.wait(1)
+        self.wait(0.5)
 
         # Add more samples
         anims = []
@@ -1293,11 +1303,42 @@ class S07SolvabilityGraph(Scene):
             anims.append(dot_to_move.animate.move_to(ax.c2p(x, new_y)))
         self.play(*anims)
 
-        self.wait(41 + 5)
+        self.wait(5.5)
+        self.play(
+            AnimationGroup(
+                [Flash(dot, flash_radius=(10 - i) * 0.1 / 10, color=WHITE) for i, dot in enumerate(all_dots[0:15])],
+                run_time=1,
+                lag_ratio=0.1,
+            )
+        )
+        self.wait(4)
+        self.play(
+            AnimationGroup(
+                [Flash(dot, flash_radius=(8 - i) * 0.1 / 8, color=WHITE) for i, dot in enumerate(reversed(all_dots[-11:-1]))],
+                run_time=1,
+                lag_ratio=0.1,
+            )
+        )
+        self.wait(5+6)
 
-        self.play(FadeOut(ax, *all_dots))
+        start_rect = Rectangle(
+            width=0,
+            height=(ax.c2p(8, 0) - ax.c2p(8, 1))[1],
+        ).move_to(ax.c2p(8, 0), aligned_edge=DOWN + LEFT).set_fill(color=BLUE, opacity=0.5).set_stroke(opacity=0)
+        self.add(start_rect)
+        new_rect = Rectangle(
+            width=(ax.c2p(12, 0) - ax.c2p(8, 0))[0],
+            height=(ax.c2p(8, 0) - ax.c2p(8, 1))[1],
+        ).move_to(ax.c2p(8, 0), aligned_edge=DOWN + LEFT).set_fill(color=BLUE, opacity=0.5).set_stroke(opacity=0)
 
-        self.wait(1)
+        self.play(
+            Transform(
+                start_rect,
+                new_rect,
+            )
+        )
+
+        self.wait(25)
 
 
 def add_histogram(is_x_axis: bool, ax: Axes, items: list[int], bucket_count: int = 10):
@@ -1350,11 +1391,30 @@ def add_histogram(is_x_axis: bool, ax: Axes, items: list[int], bucket_count: int
 
 class S08DefiningHardness(Scene):
     def construct(self):
-        title = Text("Defining difficulty")
+        title = Text("Generating hard puzzles")
         title.move_to(ORIGIN + UP * 3)
-        self.play(FadeIn(title))
+        subtitle = Text("Defining difficulty").scale(0.8).move_to(title.get_center() + DOWN * 0.8)
 
-        self.wait(7)
+        self.play(FadeIn(title))
+        self.wait(6)
+        self.play(FadeIn(subtitle))
+
+        list_part_1 = Text("1. Let people solve the puzzle").scale(0.6).move_to(ORIGIN + UP * 0.25)
+        list_part_2 = Text("2. Use the puzzle solver somehow").scale(0.6).move_to(ORIGIN + DOWN * 0.25)
+
+        self.wait(4)
+        self.play(FadeIn(list_part_1))
+        self.wait(9)
+        self.play(FadeIn(list_part_2))
+
+        self.wait(8)
+
+        self.play(FadeOut(
+            title,
+            subtitle,
+            list_part_1,
+            list_part_2,
+        ))
 
         initial_state = WaterPuzzleState.from_hashable_state([
             (1, 1, 2, 2),
@@ -1375,7 +1435,7 @@ class S08DefiningHardness(Scene):
         for node1, node2 in solver.edges:
             grapher.add_edge_to_graph(node1, node2)
 
-        grapher.run_spring_layout_re_balance(offset_x=-0.4, offset_y=-0.2, seed=2, y_distance=0.25)
+        grapher.run_spring_layout_re_balance(offset_x=-0.4, offset_y=-0.0, seed=2, y_distance=0.25)
 
         self.play(FadeIn(*grapher.node_mgroups, *grapher.edge_mgroups))
         self.wait(1)
@@ -1432,12 +1492,46 @@ class S08DefiningHardness(Scene):
                 cur_node = random_node
             is_win = cur_node == grapher.goal_node
             is_wins.append(is_win)
+
+            thing = Rectangle().set_z_index(99999999999999)
+
+            # Remove duplicates from hilightables (Why do they even appear??)
+            hilightables_new = list(set(hilightables))
+            # Sort the new list by the position in the old list
+            hilightables_new.sort(key=lambda x: hilightables.index(x))
+            # Set the old list to the new
+            print("ASDFG", len(hilightables), len(hilightables_new))
+            hilightables = hilightables_new
+
+            thing.set_points_smoothly(
+                [
+                    grapher.hash_to_node_mgroup[hashable].get_center()
+                    # grapher.current_positions[hashable]
+                    for hashable in hilightables
+                ]
+            )
+            small_circle = (
+                Circle(radius=0.2)
+                .set_stroke(YELLOW)
+                .set_fill(YELLOW)
+                .move_to(grapher.hash_to_node_mgroup[grapher.first_node].get_center())
+                .set_z_index(9999999999)
+            )
+            # self.add(thing)
+            # self.add(small_circle)
             hilight_node_in_win_animations.append(
                 AnimationGroup(
-                    *[Indicate(grapher.hash_to_node_mgroup[hashable]) for hashable in hilightables],
-                    lag_ratio=0.1
+                    # FadeIn(small_circle),
+                    MoveAlongPath(small_circle, thing),
+                    # FadeOut(small_circle),
                 )
             )
+            # hilight_node_in_win_animations.append(
+            #     AnimationGroup(
+            #         *[Indicate(grapher.hash_to_node_mgroup[hashable]) for hashable in hilightables],
+            #         # lag_ratio=0.1
+            #     )
+            # )
 
         texts = [
             Text("1. Length of shortest path (4)"),
@@ -1458,29 +1552,35 @@ class S08DefiningHardness(Scene):
             [
                 AnimationGroup(*[
                     Indicate(grapher.hash_to_node_mgroup[hashable])
-                    for hashable in invalids_hashables
+                    for hashable in set(list(invalids_hashables))
                 ]),
-                AnimationGroup(*[Indicate(node) for node in grapher.node_mgroups]),
+                AnimationGroup(*[Indicate(node) for node in set(list(grapher.node_mgroups))]),
             ],
             hilight_node_in_win_animations,
         ]
+        # breakpoint()
 
         self.wait(2)
         for (
             i,
             (text, anims, anim_dur, wait_time),
         ) in enumerate(zip(texts, hilight_animss, [
-            2, 1, 1, 2, 20
+            2, 1, 1, 2, 10
         ], [
-            2, 1, 0, 2, 2
+            1, 1, 0, 2, 2
         ])):
             text.scale(0.5)
             text.move_to(ORIGIN + UP * 1.8 + i * DOWN * 0.5 + RIGHT * 1.1, aligned_edge=LEFT + UP)
             self.play(FadeIn(text))
-            for j, anim in enumerate(anims):
-                self.play(anim, run_time=anim_dur/len(anims))
-                if j != len(anims) - 1:
-                    self.wait(0.125)
+            if i == 4:
+                self.play(AnimationGroup(*anims, lag_ratio=0.4), run_time=anim_dur)
+                pass
+            else:
+                for j, anim in enumerate(anims):
+                    self.play(anim)
+                    # self.play(anim, run_time=anim_dur/len(anims))
+                    # if j != len(anims) - 1:
+                    #     self.wait(0.125)
             self.wait(wait_time)
 
         self.wait(1)
@@ -1489,8 +1589,6 @@ class S08DefiningHardness(Scene):
 class S09VisualizingHardness(Scene):
     def construct(self):
         data_by_size = load_data_by_size("output_8_5000.json")
-
-        hist_bucket_count = 10
 
         # Axes from x 0 to 1 and y 0 to 1
         ax = Axes(
@@ -1557,15 +1655,18 @@ class S09VisualizingHardness(Scene):
                 1: puzzle_max_values[current_data_y]
             },
         )
+        # Make the ax coordinates a little bit smaller
+        for coord in ax.get_x_axis().numbers + ax.get_y_axis().numbers:
+            coord.scale(0.8)
         # Set axis titles
         ax_labels = VGroup(
             new_title_for_x(puzzle_axis_titles[current_data_x]),
             new_title_for_y(puzzle_axis_titles[current_data_y])
         )
 
-        self.wait(5)
+        self.wait(7)
         self.play(FadeIn(ax, ax_labels))
-        self.wait(6)
+        self.wait(4)
 
         hilighted_dot = None
         index_of_closest = 0
@@ -1573,17 +1674,17 @@ class S09VisualizingHardness(Scene):
         def dot_updater(dd):
             if dd == hilighted_dot and dd.has_been_scaled is False:
                 dd.has_been_scaled = True
-                dd.scale(2)
+                dd.scale(1 * 4)
             if dd != hilighted_dot and dd.has_been_scaled is True:
                 dd.has_been_scaled = False
-                dd.scale(0.5)
+                dd.scale(1 / 4)
 
         dots = []
 
         def add_dots(a, b):
             new_dots = []
             for i, (n, e) in enumerate(list(zip(puzzle_data_scaled[current_data_x], puzzle_data_scaled[current_data_y]))[a:b]):
-                dot = Dot(ax.c2p(n, e)).scale(0.5)
+                dot = Dot(ax.c2p(n, e)).scale(0.5).set_stroke(WHITE, opacity=0.5).set_fill(WHITE, opacity=0.5)
                 dot.has_been_scaled = False
                 dot.add_updater(dot_updater)
                 dot.graph_x_pos = n
@@ -1609,8 +1710,8 @@ class S09VisualizingHardness(Scene):
         probe_pos = show_offer_oval.get_points()[0]
         preview_center = ax.c2p(0.25, 0.5)
 
-        probe_shower = Dot(probe_pos)
-        probe_line = Line(probe_pos, preview_center).set_z_index(50)
+        probe_shower = Dot(probe_pos, color=YELLOW)
+        probe_line = Line(probe_pos, preview_center, color=YELLOW).set_z_index(50)
 
         preview_puzzle = WaterPuzzle.new_from_hashable_state(my_puzzles[0]["pipes"])
         all_flasks = preview_puzzle.all_flasks
@@ -1645,6 +1746,7 @@ class S09VisualizingHardness(Scene):
             # surr_and_flasks.move_to(probe_line.get_points()[-1])
             # surr_and_flasks.move_to(show_offer.get_center() + UP * 3)
 
+        self.wait(2)
         self.play(FadeIn(show_offer))
 
         flasks_updater(surr_and_flasks_and_probe_line)
@@ -1691,6 +1793,7 @@ class S09VisualizingHardness(Scene):
         # self.wait(4)
 
         add_dots(20, -1)
+        # add_dots(20, 100)
 
         self.wait(1)
 
@@ -1701,17 +1804,23 @@ class S09VisualizingHardness(Scene):
             rate_func=linear
         )
 
-        self.wait(1)
-
-        self.play(FadeOut(surr_and_flasks_and_probe_line, probe_shower))
-
+        hist_bucket_count = 20
         x_hist = add_histogram(True, ax, puzzle_data_scaled[current_data_x], bucket_count=hist_bucket_count)
-        self.play(FadeIn(x_hist))
-
         y_hist = add_histogram(False, ax, puzzle_data_scaled[current_data_y], bucket_count=hist_bucket_count)
-        self.play(FadeIn(y_hist))
 
-        self.wait(7)
+        self.wait(1)
+        self.play(
+            FadeOut(surr_and_flasks_and_probe_line, probe_shower),
+            FadeIn(x_hist)
+        )
+        self.wait(6)
+        self.play(
+            FadeOut(x_hist),
+            FadeIn(y_hist)
+        )
+        self.wait(6)
+        self.play(FadeOut(y_hist))
+        self.wait(2)
 
         def number_as_text(number) -> Mobject:
             if isinstance(number, float):
@@ -1779,31 +1888,36 @@ class S09VisualizingHardness(Scene):
             ))
 
             # Histograms
-            x_hist_new = add_histogram(True, ax, puzzle_data_scaled[current_data_x], bucket_count=hist_bucket_count)
-            y_hist_new = add_histogram(False, ax, puzzle_data_scaled[current_data_y], bucket_count=hist_bucket_count)
-            anims.append(Transform(x_hist, x_hist_new))
-            anims.append(Transform(y_hist, y_hist_new))
+            # x_hist_new = add_histogram(True, ax, puzzle_data_scaled[current_data_x], bucket_count=hist_bucket_count)
+            # y_hist_new = add_histogram(False, ax, puzzle_data_scaled[current_data_y], bucket_count=hist_bucket_count)
+            # anims.append(Transform(x_hist, x_hist_new))
+            # anims.append(Transform(y_hist, y_hist_new))
 
             self.play(*anims)
 
         change_dot_axis(1, 0)
-        self.wait(12)
+        self.wait(5)
+        line = Line(ax.c2p(0, 0), ax.c2p(1, 1)).set_color(RED)
+        self.play(FadeIn(line))
+        self.wait(5)
+        self.play(FadeOut(line))
         # change_dot_axis(1, 2)
         # self.wait(4)
-        change_dot_axis(1, 3)
-        self.wait(12)
-        change_dot_axis(1, 4)
-        self.wait(5)
         change_dot_axis(3, 4)
-        self.wait(5)
-        # Fade in a circle at the bottom right quarter of the screen
-        self.play(FadeIn(
-            Circle(
-                radius=2,
-                stroke_width=1,
-            ).shift(RIGHT * 3 + DOWN * 2)
-        ))
-        self.wait(10)
+        self.wait(7)
+        change_dot_axis(1, 3)
+        self.wait(7)
+        # change_dot_axis(1, 4)
+        # self.wait(5)
+        # self.wait(5)
+        # # Fade in a circle at the bottom right quarter of the screen
+        # self.play(FadeIn(
+        #     Circle(
+        #         radius=2,
+        #         stroke_width=1,
+        #     ).shift(RIGHT * 3 + DOWN * 2)
+        # ))
+        # self.wait(10)
 
 
 class S10MutatingPuzzle(Scene):
