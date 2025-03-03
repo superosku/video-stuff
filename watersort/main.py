@@ -1895,7 +1895,7 @@ class S09VisualizingHardness(Scene):
 
             self.play(*anims)
 
-        change_dot_axis(1, 0)
+        change_dot_axis(1, 0)  # Length of shortest path vs Number of nodes
         self.wait(5)
         line = Line(ax.c2p(0, 0), ax.c2p(1, 1)).set_color(RED)
         self.play(FadeIn(line))
@@ -1903,9 +1903,9 @@ class S09VisualizingHardness(Scene):
         self.play(FadeOut(line))
         # change_dot_axis(1, 2)
         # self.wait(4)
-        change_dot_axis(3, 4)
+        change_dot_axis(3, 4)  # Ratio of dead end nodes vs Random play win probability
         self.wait(7)
-        change_dot_axis(1, 3)
+        change_dot_axis(1, 3)  # Length of shortest path vs Ratio of dead end nodes
         self.wait(7)
         # change_dot_axis(1, 4)
         # self.wait(5)
@@ -1930,21 +1930,20 @@ class S10MutatingPuzzle(Scene):
             mutate_data = [json.loads(line) for line in lines]
 
         current_puzzle = WaterPuzzle.new_from_hashable_state(mutate_data[0]["pipes"])
-        current_puzzle.scale_properly(0.35)
-        current_puzzle.move_to(ORIGIN + LEFT * 3.5 + DOWN * 0.5)
-
-        self.wait(5)
+        current_puzzle.scale_properly(0.40)
+        current_puzzle.move_to(ORIGIN + LEFT * 3.2 + DOWN * 0.6)
 
         title = Text("Optimizing for difficulty")
         self.play(FadeIn(title))
-        self.wait(5)
+
+        self.wait(3)
 
         self.play(
             FadeIn(current_puzzle),
             FadeOut(title),
         )
 
-        self.wait()
+        self.wait(1)
 
         texts = [
             "Length of shortest path",
@@ -1962,34 +1961,28 @@ class S10MutatingPuzzle(Scene):
         ]
         min_vals = [
             min([d["moves_to_reach_winnable"] for d in my_data]),
-            min([d["nodes"] for d in my_data]),
-            min([d["edges"] for d in my_data]),
-            min([1 - d["winnable_nodes_vs_nodes"] for d in my_data]),
-            min([d["random_play_wins"] for d in my_data]),
+            # min([d["nodes"] for d in my_data]),
+            # min([d["edges"] for d in my_data]),
+            # min([1 - d["winnable_nodes_vs_nodes"] for d in my_data]),
+            # min([d["random_play_wins"] for d in my_data]),
         ]
 
         axes = [
             Axes(
                 x_range=(0, 1),
                 y_range=(0, 1),
-            ).scale(0.18)
-            for _ in range(5)
+            ).scale(0.25)
+            for _ in range(1)
         ]
 
         scale_x = 2.5
         scale_y = 2.2
 
-        for i in range(5):
-            axes[i].move_to(ORIGIN + UP * 1.0 * scale_y + RIGHT * (i - 2) * scale_x)
-        #
-        # axes[0].move_to(ORIGIN + UP * 1.0 * scale_y + RIGHT * 0.3 * scale_x)
-        # axes[1].move_to(ORIGIN + UP * 0.0 * scale_y + RIGHT * 0.3 * scale_x)
-        # axes[2].move_to(ORIGIN + UP * -1.0 * scale_y + RIGHT * 0.3 * scale_x)
-        #
-        # axes[3].move_to(ORIGIN + UP * 0.5 * scale_y + RIGHT * 1.0 * scale_x)
-        # axes[4].move_to(ORIGIN + UP * -0.5 * scale_y + RIGHT * 1.0 * scale_x)
+        # for i in range(1):
+        #     axes[i].move_to(ORIGIN + UP * 1.0 * scale_y + RIGHT * (i - 2) * scale_x)
 
-        # self.play(FadeIn(*axes))
+        axes[0].move_to(ORIGIN + UP * 0.9 * scale_y + RIGHT * (-1.5) * scale_x)
+
         graph_rect_titles = [
             Text(text)
             .scale(0.35)
@@ -2001,27 +1994,75 @@ class S10MutatingPuzzle(Scene):
 
         self.wait(2)
 
-        ax_scatter = Axes(
+
+        ax_scatter_1 = Axes(
             x_range=(0, 1),
             y_range=(0, 1),
-        ).scale(0.5).shift(RIGHT * 3 + DOWN * 1.5)
-        ax_scatter.scale(0.8).shift(LEFT)  # TODO: TEMP
-        scatter_dots = [
+        ).scale(0.5).shift(RIGHT * 4.5 + UP * 1.7)
+        ax_scatter_1.scale(0.8).shift(LEFT)  # TODO: TEMP
+        scatter_dots_1 = [
             Dot(
-                ax_scatter.c2p(
+                ax_scatter_1.c2p(
                     d["nodes"] / max_vals[1],
-                    d["random_play_wins"] / max_vals[4],
+                    d["edges"] / max_vals[2],
                 ),
-            ).scale(0.3).set_stroke(WHITE, opacity=0.3).set_fill(WHITE, opacity=0.3)
+            ).scale(0.3).set_stroke(WHITE, opacity=0.5).set_fill(WHITE, opacity=0.5)
             for d in my_data[0:500]
         ]
 
-        self.play(
-            FadeIn(ax_scatter, *scatter_dots),
+        ax_scatter_1_axis_title_1 = (
+            Text("Number of nodes").scale(0.5).move_to(ax_scatter_1.c2p(0.5, 0) + DOWN * 0.3)
+        )
+        ax_scatter_1_axis_title_2 = (
+            Text("Number of edges").scale(0.5).move_to(ax_scatter_1.c2p(0, 0.5) + LEFT * 0.3).rotate(PI / 2)
         )
 
+        self.play(
+            FadeIn(
+                ax_scatter_1,
+                *scatter_dots_1,
+                ax_scatter_1_axis_title_1,
+                ax_scatter_1_axis_title_2,
+            ),
+        )
+
+        self.wait(1)
+
+        ax_scatter_2 = Axes(
+            x_range=(0, 1),
+            y_range=(0, 1),
+        ).scale(0.5).shift(RIGHT * 4.5 + DOWN * 1.7)
+        ax_scatter_2.scale(0.8).shift(LEFT)  # TODO: TEMP
+        scatter_dots_2 = [
+            Dot(
+                ax_scatter_2.c2p(
+                    (1 - d["winnable_nodes_vs_nodes"]) / max_vals[3],
+                    d["random_play_wins"] / (max_vals[4]),  # TODO: 10 is a hack. scale changed mid runs
+                ),
+            ).scale(0.3).set_stroke(WHITE, opacity=0.5).set_fill(WHITE, opacity=0.5)
+            for d in my_data[0:500]
+        ]
+
+        ax_scatter_2_axis_title_1 = (
+            Text("Ratio of dead end nodes").scale(0.5).move_to(ax_scatter_2.c2p(0.5, 0) + DOWN * 0.3)
+        )
+        ax_scatter_2_axis_title_2 = (
+            Text("Random play win probability").scale(0.5).move_to(ax_scatter_2.c2p(0, 0.5) + LEFT * 0.3).rotate(PI / 2)
+        )
+
+        self.play(
+            FadeIn(
+                ax_scatter_2,
+                *scatter_dots_2,
+                ax_scatter_2_axis_title_1,
+                ax_scatter_2_axis_title_2,
+            ),
+        )
+
+
         last_dots = []
-        for mut_index, mutated in enumerate(mutate_data):
+        mutate_data_improvenments = [m for m in mutate_data if m["is_improvenment"]]
+        for mut_index, mutated in enumerate(mutate_data_improvenments):
             # if mut_index > 100:
             #     break
 
@@ -2040,14 +2081,16 @@ class S10MutatingPuzzle(Scene):
 
             new_dots = []
             new_lines = []
-            min_factors = [min_vals[0] - 10, min_vals[1], min_vals[2], 0, 0]
-            max_factors = [max_vals[0] + 3, max_vals[1] * 3, max_vals[2] * 3, 1.0, 50000]  # TODO: Note hardcoded last val...
+            # min_factors = [min_vals[0] - 10, min_vals[1], min_vals[2], 0, 0]
+            # max_factors = [max_vals[0] + 3, max_vals[1] * 3, max_vals[2] * 3, 1.0, 50000]  # TODO: Note hardcoded last val...
+            min_factors = [min_vals[0] - 10]
+            max_factors = [max_vals[0] + 3]
 
             # Add to 5 upper graphs
             for (
                 ax, val, max_val, min_val
             ) in zip(axes, cur_vals, max_factors, min_factors):
-                scaled_x = mut_index / len(mutate_data)
+                scaled_x = mut_index / len(mutate_data_improvenments)
                 scaled_y = (val - min_val) / (max_val - min_val)
                 # (p - min_val) / (max_val - min_val)
                 dot = Dot(ax.c2p(scaled_x, scaled_y), radius=DEFAULT_DOT_RADIUS * 0.5)
@@ -2056,10 +2099,29 @@ class S10MutatingPuzzle(Scene):
                     for a, b in zip(last_dots, new_dots):
                         new_lines.append(Line(a.get_center(), b.get_center(), color=WHITE))
 
-            # Add to scatter plot
+            # Add to scatter plot 1
             dot = Dot(
-                ax_scatter.c2p(
+                ax_scatter_1.c2p(
                     cur_vals[1] / max_vals[1],
+                    cur_vals[2] / max_vals[2],
+                ),
+                color=YELLOW
+            ).scale(0.5)
+            new_dots.append(dot)
+            if last_dots:
+                last_dot = last_dots[-2]
+                new_lines.append(
+                    Line(
+                        last_dot.get_center(),
+                        dot.get_center(),
+                        color=YELLOW
+                    )
+                )
+
+            # Add to scatter plot 2
+            dot = Dot(
+                ax_scatter_2.c2p(
+                    cur_vals[3] / max_vals[3],
                     cur_vals[4] / (max_vals[4] * 10),  # TODO: "* 10" is a hack.. scale changed between runs
                 ),
                 color=YELLOW
