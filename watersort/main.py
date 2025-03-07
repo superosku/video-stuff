@@ -293,6 +293,27 @@ class S01WaterPuzzleSolved(Scene):
         self.play(FadeOut(puzzle))
 
 
+class S01TitleScreenTexts(Scene):
+    def construct(self):
+        texts = [
+            Text("1. Solver for the game").scale(1.2),
+            Text("2. Generating new puzzles").scale(1.2),
+            Text("3. Define puzzles difficulty").scale(1.2),
+            Text("4. Generate the most difficult puzzle").scale(1.2),
+        ]
+        texts[1].move_to(texts[0], aligned_edge=LEFT + UP).shift(1.1 * DOWN)
+        texts[2].move_to(texts[0], aligned_edge=LEFT + UP).shift(1.1 * DOWN * 2)
+        texts[3].move_to(texts[0], aligned_edge=LEFT + UP).shift(1.1 * DOWN * 3)
+        text_vgroup = VGroup(*texts)
+        text_vgroup.move_to(ORIGIN)
+        self.play(FadeIn(texts[0]))
+        self.wait(4)
+        self.play(FadeIn(texts[1]))
+        self.wait(2)
+        self.play(FadeIn(texts[2], texts[3]))
+        self.wait(10)
+
+
 def animate_cross_fade_in_out(scene: Scene):
     circle = Circle(radius=2).set_stroke(width=30, color=PURE_RED).set_fill(opacity=0)
     line = Line(
@@ -391,6 +412,21 @@ class S02WaterPuzzleExplained(Scene):
         moving_flask.change_z_indexes(-20)
 
         self.wait(1)
+
+
+class S05PathFindingTitleScreen(Scene):
+    def construct(self):
+        title = Text("Water Sort Puzzle Solver").scale(1.5)
+        subtitle = Text("Path finding").scale(0.8)
+        subtitle.shift(DOWN)
+        subsubtitle = Text("Breadth First Search (BFS)").scale(0.6)
+        subsubtitle.shift(DOWN * 1.5)
+        self.play(FadeIn(title))
+        self.wait(2+7)
+        self.play(FadeIn(subtitle))
+        self.wait(1)
+        self.play(FadeIn(subsubtitle))
+        self.wait(10)
 
 
 class S05PathFinding(Scene):
@@ -801,6 +837,35 @@ class S05PathFinding(Scene):
             *[FadeOut(text) for text in self.all_texts],
         )
         self.all_texts = []
+
+
+class S06WaterSortAsGraphTitleScreen(Scene):
+    def construct(self):
+        title = Text("Water Sort Puzzle Solver").scale(1.5).shift(UP * 2)
+        subtitle = Text("Turning the puzzle into a graph").scale(0.8).shift(UP * 2)
+        subtitle.shift(DOWN)
+        self.play(FadeIn(title))
+        self.wait(1)
+        self.play(FadeIn(subtitle))
+        self.wait(2)
+
+        # 3 circles below the subtitle
+        circles = [
+            Circle(radius=0.5, color=WHITE).set_fill(BLACK, opacity=1).set_z_index(10).shift(DOWN * 0),
+            Circle(radius=0.5, color=WHITE).set_fill(BLACK, opacity=1).set_z_index(10).shift(DOWN * 2 + RIGHT * 2),
+            Circle(radius=0.5, color=WHITE).set_fill(BLACK, opacity=1).set_z_index(10).shift(DOWN * 2 + LEFT * 2),
+        ]
+        self.play(FadeIn(*circles))
+        lines = []
+        for i, a in enumerate(circles):
+            for j, b in enumerate(circles):
+                if i != j:
+                    lines.append(Line(a.get_center(), b.get_center(), color=WHITE).set_z_index(1))
+
+        self.wait(2)
+        self.play(FadeIn(*lines))
+
+        self.wait(5)
 
 
 class S06WaterSortAsGraph(Scene):
@@ -1382,9 +1447,9 @@ def add_histogram(is_x_axis: bool, ax: Axes, items: list[int], bucket_count: int
         rect = Rectangle(
             width=bar_width if is_x_axis else bar_height,
             height=bar_height if is_x_axis else bar_width,
-            fill_opacity=0.5,
-            fill_color=WHITE,
-        ).move_to(bar_coords)
+            fill_opacity=1,
+            fill_color=GRAY,
+        ).move_to(bar_coords).set_z_index(1000)
         all_rects.append(rect)
     return VGroup(*all_rects)
 
@@ -1586,7 +1651,7 @@ class S08DefiningHardness(Scene):
         self.wait(1)
 
 
-class S09VisualizingHardness(Scene):
+class S09VisualizingHardness2(Scene):
     def construct(self):
         data_by_size = load_data_by_size("output_8_5000.json")
 
@@ -1604,10 +1669,15 @@ class S09VisualizingHardness(Scene):
             [p["nodes"] for p in my_puzzles],
             [p["edges"] for p in my_puzzles],
             [1 - p["winnable_nodes_vs_nodes"] for p in my_puzzles],
-            [p["random_play_wins"] for p in my_puzzles],
+            [p["random_play_wins"] / 5000 for p in my_puzzles],  # TODO: Should I revert this or not?
         ]
         puzzle_max_values = [max(p) for p in puzzle_data]
         puzzle_min_values = [min(p) for p in puzzle_data]
+        # puzzle_max_values = []
+        # puzzle_max_values = [29, 29128, 101210, 0.7272126816380449, 4965]
+        # puzzle_min_values = [16, 734, 2466, 0.0028694404591105283, 11]
+        puzzle_max_values = [29, 30000, 110000, 1.0, 1.0]
+        puzzle_min_values = [16, 0, 0, 0.0, 0.0]
         puzzle_data_scaled = [
             [
                 (p - min_val) / (max_val - min_val)
@@ -1663,6 +1733,7 @@ class S09VisualizingHardness(Scene):
             new_title_for_x(puzzle_axis_titles[current_data_x]),
             new_title_for_y(puzzle_axis_titles[current_data_y])
         )
+        ax.coordinate_labels[1][1].shift(RIGHT * 0.4 + UP * 0.15)
 
         self.wait(7)
         self.play(FadeIn(ax, ax_labels))
@@ -1681,10 +1752,14 @@ class S09VisualizingHardness(Scene):
 
         dots = []
 
+        def new_dot_at(point):
+            dot = Dot(point).scale(0.5).set_stroke(WHITE, opacity=0.5).set_fill(WHITE, opacity=0.5)
+            return dot
+
         def add_dots(a, b):
             new_dots = []
             for i, (n, e) in enumerate(list(zip(puzzle_data_scaled[current_data_x], puzzle_data_scaled[current_data_y]))[a:b]):
-                dot = Dot(ax.c2p(n, e)).scale(0.5).set_stroke(WHITE, opacity=0.5).set_fill(WHITE, opacity=0.5)
+                dot = new_dot_at(ax.c2p(n, e))
                 dot.has_been_scaled = False
                 dot.add_updater(dot_updater)
                 dot.graph_x_pos = n
@@ -1694,101 +1769,161 @@ class S09VisualizingHardness(Scene):
                 new_dots.append(dot)
             self.play(FadeIn(*new_dots))
 
-        add_dots(0, 20)
+        def animate_dot_adding_as_puzzle(index):
+            pipes = my_puzzles[index]["pipes"]
+            puzzle = WaterPuzzle.new_from_hashable_state(pipes)
+            for flask in puzzle.flasks:
+                flask.rotating = True
+            puzzle.scale_properly(0.2)
+            point_coords = ax.c2p(
+                puzzle_data_scaled[current_data_x][index],
+                puzzle_data_scaled[current_data_y][index],
+            )
+            surrounding_rect = SurroundingRectangle(puzzle.all_flasks, buff=0.20, corner_radius=0.1, color=WHITE)
+            pipes = VGroup(
+                surrounding_rect,
+                puzzle.all_flasks,
+            )
+            dot = new_dot_at(point_coords)
+            dot.has_been_scaled = False
+            dot.add_updater(dot_updater)
+            dot.graph_x_pos = puzzle_data_scaled[current_data_x][index]
+            dot.graph_y_pos = puzzle_data_scaled[current_data_y][index]
+            dot.index_in_data = index
+
+            pipes.move_to(point_coords)
+            self.play(FadeIn(pipes))
+
+            shower_coord_x = ax.c2p(puzzle_data_scaled[current_data_x][index], 0)
+            shower_coord_y = ax.c2p(0, puzzle_data_scaled[current_data_y][index])
+
+            shower_x = DashedLine(
+                point_coords,
+                shower_coord_x,
+            ).set_stroke(WHITE, opacity=0.5)
+            shower_x_text = MathTex(str(puzzle_data[current_data_x][index])).scale(0.7).move_to(shower_coord_x + UP * 0.3)
+
+            shower_y = DashedLine(
+                point_coords,
+                shower_coord_y,
+            ).set_stroke(WHITE, opacity=0.5)
+            shower_y_text = MathTex(str(puzzle_data[current_data_y][index])).scale(0.7).move_to(shower_coord_y + RIGHT * 0.7)
+
+            self.play(FadeIn(shower_x, shower_x_text))
+            self.wait(1)
+            self.play(FadeIn(shower_y, shower_y_text))
+
+            self.wait(3)
+
+            self.play(FadeOut(shower_x, shower_x_text, shower_y, shower_y_text))
+
+            self.play(
+                pipes.animate.scale(0.001),
+                FadeIn(dot)
+            )
+            self.remove(pipes)
+            dots.append(dot)
+
+        animate_dot_adding_as_puzzle(0)
+        animate_dot_adding_as_puzzle(7)
+        animate_dot_adding_as_puzzle(1)
+
+        add_dots(1, 20)
 
         # self.wait(1)
 
         x_diff = (ax.c2p(1, 0) - ax.c2p(0, 0))[0]
         y_diff = (ax.c2p(0, 1) - ax.c2p(0, 0))[1]
         angle_to_rotate = math.atan(y_diff / x_diff)
-        show_offer_oval = Circle()
-        show_offer_oval.set_points([[p[0], p[1] / 6, p[2]] for p in show_offer_oval.get_points()])
-        show_offer_oval.scale(6)
-        show_offer_oval.rotate(angle_to_rotate)
+
+        # show_offer_oval = Circle()
+        # show_offer_oval.set_points([[p[0], p[1] / 6, p[2]] for p in show_offer_oval.get_points()])
+        # show_offer_oval.scale(6)
+        # show_offer_oval.rotate(angle_to_rotate)
 
         # probe_pos = ax.c2p(0.0, 0.0)
-        probe_pos = show_offer_oval.get_points()[0]
-        preview_center = ax.c2p(0.25, 0.5)
+        # probe_pos = show_offer_oval.get_points()[0]
+        # preview_center = ax.c2p(0.25, 0.5)
 
-        probe_shower = Dot(probe_pos, color=YELLOW)
-        probe_line = Line(probe_pos, preview_center, color=YELLOW).set_z_index(50)
+        # probe_shower = Dot(probe_pos, color=YELLOW)
+        # probe_line = Line(probe_pos, preview_center, color=YELLOW).set_z_index(50)
 
-        preview_puzzle = WaterPuzzle.new_from_hashable_state(my_puzzles[0]["pipes"])
-        all_flasks = preview_puzzle.all_flasks
-        for flask in preview_puzzle.flasks:
-            flask.change_z_indexes(150)
-            flask.rotating = True
-        all_flasks.scale(0.3)
-        surrounding_rect = (
-            SurroundingRectangle(all_flasks, buff=0.10, corner_radius=0.05, color=WHITE)
-            .set_fill(BLACK, opacity=1)
-            .set_z_index(100)
-            # .set_stroke(width=1.0)
-        )
-        surr_and_flasks_and_probe_line = VGroup(all_flasks, surrounding_rect, probe_line)
+        # preview_puzzle = WaterPuzzle.new_from_hashable_state(my_puzzles[0]["pipes"])
+        # all_flasks = preview_puzzle.all_flasks
+        # for flask in preview_puzzle.flasks:
+        #     flask.change_z_indexes(150)
+        #     flask.rotating = True
+        # all_flasks.scale(0.3)
+        # surrounding_rect = (
+        #     SurroundingRectangle(all_flasks, buff=0.10, corner_radius=0.05, color=WHITE)
+        #     .set_fill(BLACK, opacity=1)
+        #     .set_z_index(100)
+        #     # .set_stroke(width=1.0)
+        # )
+        # surr_and_flasks_and_probe_line = VGroup(all_flasks, surrounding_rect, probe_line)
 
-        show_offer = probe_shower
+        # show_offer = probe_shower
         # show_offer = VGroup(probe_shower, probe_line)
-        surr_and_flasks_and_probe_line.shift(UP * 2.2 + LEFT * 3.2)
+        # surr_and_flasks_and_probe_line.shift(UP * 2.2 + LEFT * 3.2)
         #
         # self.add(surr_and_flasks)
 
-        def flasks_updater(vgroup):
-            nonlocal index_of_closest
-            puzz_to_use = my_puzzles[index_of_closest]
-            pipes = puzz_to_use["pipes"]
-            preview_puzzle.set_colors_from_hashable_state(pipes)
-            probe_line.set_points_smoothly(
-                [probe_shower.get_center(), surrounding_rect.get_center()]
-            )
-            # probe_line, probe_shower
-            # breakpoint()
-            # surr_and_flasks.move_to(probe_line.get_points()[-1])
-            # surr_and_flasks.move_to(show_offer.get_center() + UP * 3)
+        # def flasks_updater(vgroup):
+        #     nonlocal index_of_closest
+        #     puzz_to_use = my_puzzles[index_of_closest]
+        #     pipes = puzz_to_use["pipes"]
+        #     preview_puzzle.set_colors_from_hashable_state(pipes)
+        #     probe_line.set_points_smoothly(
+        #         [probe_shower.get_center(), surrounding_rect.get_center()]
+        #     )
+        #     # probe_line, probe_shower
+        #     # breakpoint()
+        #     # surr_and_flasks.move_to(probe_line.get_points()[-1])
+        #     # surr_and_flasks.move_to(show_offer.get_center() + UP * 3)
 
-        self.wait(2)
-        self.play(FadeIn(show_offer))
+        self.wait(2 + 1 + 5)
+        # self.play(FadeIn(show_offer))
 
-        flasks_updater(surr_and_flasks_and_probe_line)
-        surr_and_flasks_and_probe_line.add_updater(flasks_updater, call_updater=True)
+        # flasks_updater(surr_and_flasks_and_probe_line)
+        # surr_and_flasks_and_probe_line.add_updater(flasks_updater, call_updater=True)
 
-        def probe_updater(ff):
-            # nonlocal hilight_dot
-            # nonlocal un_hilight_dot
-            nonlocal hilighted_dot
-            nonlocal index_of_closest
-
-            pos_in_graph = ax.p2c(probe_shower.get_center())
-            index_of_closest = sorted([
-                ((d.graph_x_pos - pos_in_graph[0]) ** 2 + (d.graph_y_pos - pos_in_graph[1]) ** 2, i)
-                for i, d in
-                enumerate(dots)]
-            )[0][1]
-            # x_in_graph = pos_in_graph[0]
-            # try:
-            #     index_of_closest = [i > x_in_graph for i in number_of_nodes_scaled].index(True)
-            # except ValueError:
-            #     # breakpoint()
-            #     print("THIS HAPPENED")
-            #     # TODO: What to do (Should be the last index?)
-            #     index_of_closest = len(number_of_nodes_scaled) - 1
-
-            dot_to_hilight = dots[index_of_closest]
-            hilighted_dot = dot_to_hilight
-
-        probe_shower.add_updater(probe_updater)
+        # def probe_updater(ff):
+        #     # nonlocal hilight_dot
+        #     # nonlocal un_hilight_dot
+        #     nonlocal hilighted_dot
+        #     nonlocal index_of_closest
+        #
+        #     pos_in_graph = ax.p2c(probe_shower.get_center())
+        #     index_of_closest = sorted([
+        #         ((d.graph_x_pos - pos_in_graph[0]) ** 2 + (d.graph_y_pos - pos_in_graph[1]) ** 2, i)
+        #         for i, d in
+        #         enumerate(dots)]
+        #     )[0][1]
+        #     # x_in_graph = pos_in_graph[0]
+        #     # try:
+        #     #     index_of_closest = [i > x_in_graph for i in number_of_nodes_scaled].index(True)
+        #     # except ValueError:
+        #     #     # breakpoint()
+        #     #     print("THIS HAPPENED")
+        #     #     # TODO: What to do (Should be the last index?)
+        #     #     index_of_closest = len(number_of_nodes_scaled) - 1
+        #
+        #     dot_to_hilight = dots[index_of_closest]
+        #     hilighted_dot = dot_to_hilight
+        #
+        # probe_shower.add_updater(probe_updater)
 
         x_diff_whole_graph = (ax.c2p(1, 0) - ax.c2p(0, 0))[0]
         y_diff_whole_graph = (ax.c2p(0, 1) - ax.c2p(0, 0))[1]
 
-        self.play(FadeIn(surr_and_flasks_and_probe_line))
-
-        self.play(
-            MoveAlongPath(show_offer, show_offer_oval),
-            # show_offer.animate.shift(RIGHT * x_diff_whole_graph * 1.0 + UP * y_diff_whole_graph * 1.0),
-            run_time=10,
-            rate_func=linear
-        )
+        # self.play(FadeIn(surr_and_flasks_and_probe_line))
+        #
+        # self.play(
+        #     MoveAlongPath(show_offer, show_offer_oval),
+        #     # show_offer.animate.shift(RIGHT * x_diff_whole_graph * 1.0 + UP * y_diff_whole_graph * 1.0),
+        #     run_time=10,
+        #     rate_func=linear
+        # )
 
         # self.wait(4)
 
@@ -1797,20 +1932,20 @@ class S09VisualizingHardness(Scene):
 
         self.wait(1)
 
-        self.play(
-            MoveAlongPath(show_offer, show_offer_oval),
-            # show_offer.animate.shift(-RIGHT * x_diff_whole_graph * 1.0 - UP * y_diff_whole_graph * 1.0),
-            run_time=20,
-            rate_func=linear
-        )
+        # self.play(
+        #     MoveAlongPath(show_offer, show_offer_oval),
+        #     # show_offer.animate.shift(-RIGHT * x_diff_whole_graph * 1.0 - UP * y_diff_whole_graph * 1.0),
+        #     run_time=20,
+        #     rate_func=linear
+        # )
 
         hist_bucket_count = 20
         x_hist = add_histogram(True, ax, puzzle_data_scaled[current_data_x], bucket_count=hist_bucket_count)
         y_hist = add_histogram(False, ax, puzzle_data_scaled[current_data_y], bucket_count=hist_bucket_count)
 
-        self.wait(1)
+        self.wait(1 + 6 + 8 + 3 + 1)
         self.play(
-            FadeOut(surr_and_flasks_and_probe_line, probe_shower),
+        #     FadeOut(surr_and_flasks_and_probe_line, probe_shower),
             FadeIn(x_hist)
         )
         self.wait(6)
@@ -1896,7 +2031,7 @@ class S09VisualizingHardness(Scene):
             self.play(*anims)
 
         change_dot_axis(1, 0)  # Length of shortest path vs Number of nodes
-        self.wait(5)
+        self.wait(5 + 2)
         line = Line(ax.c2p(0, 0), ax.c2p(1, 1)).set_color(RED)
         self.play(FadeIn(line))
         self.wait(5)
@@ -1905,7 +2040,7 @@ class S09VisualizingHardness(Scene):
         # self.wait(4)
         change_dot_axis(3, 4)  # Ratio of dead end nodes vs Random play win probability
         self.wait(7)
-        change_dot_axis(1, 3)  # Length of shortest path vs Ratio of dead end nodes
+        change_dot_axis(1, 4)  # Length of shortest path vs Ratio of dead end nodes
         self.wait(7)
         # change_dot_axis(1, 4)
         # self.wait(5)
